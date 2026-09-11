@@ -7,6 +7,7 @@ import { useToast } from '@/store/useToast'
 import { angka, rupiah, tanggalJam } from '@/lib/format'
 import { cetakStruk } from '@/lib/print'
 import { Button, Input, Label, Modal, Select } from '@/components/ui'
+import { syncService, type SyncStatus } from '@/lib/syncService'
 
 function BukaShift() {
   const { bukaShift } = useDataStore()
@@ -131,12 +132,44 @@ export function KasirPOS() {
   const [metode, setMetode] = useState<MetodePembayaran>('tunai')
   const [dibayar, setDibayar] = useState(0)
   const [struk, setStruk] = useState<Transaksi | null>(null)
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(syncService.status)
+  const [recentUpdatedIds, setRecentUpdatedIds] = useState<Set<string>>(new Set())
+  const [qrModalOpen, setQrModalOpen] = useState(false)
 
   const openShift = shifts.find((s) => s.kasirId === currentUser?.id && s.status === 'buka') ?? null
 
   useEffect(() => {
     if (openShift) setShiftId(openShift.id)
   }, [openShift?.id])
+
+  useEffect(() => {
+    const unsubStatus = syncService.onStatusChange((status) => {
+      setSyncStatus({ ...status })
+    })
+
+    const unsubMutation = syncService.onStockMutation((ev) => {
+      const ids = ev.items.map((i) => i.produkId)
+      setRecentUpdatedIds((prev) => {
+        const next = new Set(prev)
+        ids.forEach((id) => next.add(id))
+        return next
+      })
+
+      // Hilangkan efek visual highlight setelah 4 detik
+      setTimeout(() => {
+        setRecentUpdatedIds((prev) => {
+          const next = new Set(prev)
+          ids.forEach((id) => next.delete(id))
+          return next
+        })
+      }, 4000)
+    })
+
+    return () => {
+      unsubStatus()
+      unsubMutation()
+    }
+  }, [])
 
   const focusBarcode = () => {
     if (!bayarOpen && !struk) setTimeout(() => barcodeRef.current?.focus(), 60)
@@ -247,6 +280,42 @@ export function KasirPOS() {
       {/* Kiri: katalog produk */}
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="border-b border-slate-200 bg-white p-3">
+          {/* Status Bar Sinkronisasi Multi-Perangkat */}
+          <div className="mb-2.5 flex items-center justify-between rounded-lg border border-slate-200/80 bg-slate-50/80 px-3 py-1.5 text-xs shadow-xs">
+            <div className="flex items-center gap-2">
+              {syncStatus.mode === 'ws' && syncStatus.connected ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-100/70 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
+                  <span className="relative flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
+                  </span>
+                  LAN Realtime ({syncStatus.activePeers} Perangkat)
+                </span>
+              ) : syncStatus.mode === 'poll' && syncStatus.connected ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-300 bg-sky-100/70 px-2.5 py-0.5 text-xs font-semibold text-sky-800">
+                  <span className="h-2 w-2 rounded-full bg-sky-500"></span>
+                  Web Sync Aktif
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-slate-200/60 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+                  <span className="h-2 w-2 rounded-full bg-slate-400"></span>
+                  Lokal Standalone
+                </span>
+              )}
+              <span className="hidden font-mono text-[11px] text-slate-500 sm:inline">
+                ID: {syncService.getDeviceId()}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setQrModalOpen(true)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 shadow-xs hover:border-brand-400 hover:bg-brand-50 hover:text-brand-700 transition"
+            >
+              <span>📱</span>
+              <span>Hubungkan HP (QR)</span>
+            </button>
+          </div>
+
           <form onSubmit={handleBarcode} className="mb-2 flex gap-2">
             <div className="relative flex-1">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
@@ -279,22 +348,44 @@ export function KasirPOS() {
 
         <div className="flex-1 overflow-y-auto p-3">
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-            {grid.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => klikProduk(p)}
-                className="flex flex-col rounded-xl border border-slate-200 bg-white p-3 text-left transition hover:border-emerald-400 hover:shadow-md active:scale-[0.98]"
-              >
-                <p className="line-clamp-2 min-h-[34px] text-xs font-medium text-slate-700">{p.nama}</p>
-                <p className="mt-1 text-sm font-bold text-emerald-600">{rupiah(p.hargaJual)}</p>
-                <div className="mt-1 flex items-center justify-between">
-                  <span className="font-mono text-[10px] text-slate-400">{p.sku}</span>
-                  <span className={`text-[10px] font-medium ${p.stok <= p.stokMinimum ? 'text-amber-600' : 'text-slate-400'}`}>
-                    stok {p.stok}
-                  </span>
-                </div>
-              </button>
-            ))}
+            {grid.map((p) => {
+              const isRecent = recentUpdatedIds.has(p.id)
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => klikProduk(p)}
+                  className={`flex flex-col rounded-xl border bg-white p-3 text-left transition active:scale-[0.98] ${
+                    isRecent
+                      ? 'border-amber-400 bg-amber-50/70 ring-2 ring-amber-400 shadow-md animate-pulse'
+                      : 'border-slate-200 hover:border-emerald-400 hover:shadow-md'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-1">
+                    <p className="line-clamp-2 min-h-[34px] text-xs font-medium text-slate-700">{p.nama}</p>
+                    {isRecent && (
+                      <span className="shrink-0 rounded bg-amber-500 px-1 py-0.5 text-[9px] font-bold text-white shadow-xs">
+                        ⚡ Berkurang
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-sm font-bold text-emerald-600">{rupiah(p.hargaJual)}</p>
+                  <div className="mt-1 flex items-center justify-between">
+                    <span className="font-mono text-[10px] text-slate-400">{p.sku}</span>
+                    <span
+                      className={`text-[10px] font-medium ${
+                        isRecent
+                          ? 'font-bold text-amber-700'
+                          : p.stok <= p.stokMinimum
+                            ? 'text-amber-600'
+                            : 'text-slate-400'
+                      }`}
+                    >
+                      stok {p.stok}
+                    </span>
+                  </div>
+                </button>
+              )
+            })}
           </div>
           {grid.length === 0 && (
             <p className="py-16 text-center text-sm text-slate-400">Tidak ada produk yang cocok.</p>
@@ -480,6 +571,60 @@ export function KasirPOS() {
         footer={<Button onClick={() => { setStruk(null); focusBarcode() }}>Transaksi Baru</Button>}
       >
         {struk && <StrukView trx={struk} namaKasir={currentUser?.nama ?? ''} />}
+      </Modal>
+
+      {/* Modal QR Code untuk Multi-Device Demo */}
+      <Modal
+        open={qrModalOpen}
+        onClose={() => setQrModalOpen(false)}
+        title="📱 Hubungkan HP Kasir Lain (Multi-Device Demo)"
+        lebar="max-w-md"
+      >
+        <div className="space-y-4 text-center">
+          <p className="text-xs text-slate-600">
+            Arahkan kamera HP ke QR Code di bawah untuk membuka sistem kasir di HP Anda.
+            Pastikan HP dan laptop terhubung ke <b>WiFi / Hotspot yang sama</b>.
+          </p>
+
+          <div className="mx-auto flex w-fit flex-col items-center rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-xs">
+            <img
+              src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                typeof window !== 'undefined' ? window.location.href : '',
+              )}`}
+              alt="QR Code Akses HP"
+              className="h-44 w-44 rounded-lg bg-white p-1"
+            />
+            <p className="mt-3 font-mono text-xs font-semibold text-brand-700 break-all">
+              {typeof window !== 'undefined' ? window.location.href : ''}
+            </p>
+          </div>
+
+          <div className="rounded-lg bg-emerald-50 p-3 text-left text-xs text-emerald-800 border border-emerald-200">
+            <p className="font-semibold">💡 Tips Demo Multi-Kasir:</p>
+            <ul className="mt-1 list-disc pl-4 space-y-1 text-[11px]">
+              <li>Buka link ini di HP Kasir 1 dan HP Kasir 2.</li>
+              <li>Lakukan transaksi checkout di HP Kasir 1.</li>
+              <li>Lihat angka stok di HP Kasir 2 langsung berkurang realtime dengan badge ⚡ Berkurang!</li>
+            </ul>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  navigator.clipboard.writeText(window.location.href)
+                  push({ tipe: 'sukses', judul: 'Link Disalin', pesan: window.location.href })
+                }
+              }}
+            >
+              Salin URL
+            </Button>
+            <Button variant="primary" onClick={() => setQrModalOpen(false)}>
+              Tutup
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   )

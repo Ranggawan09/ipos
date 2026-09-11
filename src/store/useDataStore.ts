@@ -28,6 +28,8 @@ import {
   USER_SEED,
   isoDaysAgo,
 } from '@/data/seed'
+import { syncService } from '@/lib/syncService'
+import { useToast } from './useToast'
 
 // ---------------------------------------------------------------------------
 // Data store: seluruh data bisnis. Dipersist ke localStorage dan disinkronkan
@@ -277,6 +279,10 @@ export const useDataStore = create<DataState>()(
           waktu: new Date().toISOString(),
         }
         set({ produk: produks, pergerakan: [mov, ...get().pergerakan] })
+        syncService.broadcastStockMutation(
+          [{ produkId, namaProduk: p.nama, qty: jumlah, sisaStok: p.stok }],
+          'Gudang / Keluar',
+        )
       },
 
       stockOpname: ({ produkId, stokFisik, userId }) => {
@@ -298,6 +304,10 @@ export const useDataStore = create<DataState>()(
           waktu: new Date().toISOString(),
         }
         set({ produk: produks, pergerakan: [mov, ...get().pergerakan] })
+        syncService.broadcastStockMutation(
+          [{ produkId, namaProduk: p.nama, qty: -selisih, sisaStok: stokFisik }],
+          'Stock Opname',
+        )
       },
 
       importProduk: (rows) => {
@@ -522,6 +532,20 @@ export const useDataStore = create<DataState>()(
               : s,
           ),
         })
+
+        // Broadcast mutasi stok realtime ke seluruh perangkat lain (HP kasir lain / owner)
+        const mutasiItems = detail.map((d) => {
+          const p = produks.find((x) => x.id === d.produkId)
+          return {
+            produkId: d.produkId,
+            namaProduk: d.namaProduk || p?.nama || 'Produk',
+            qty: d.qty,
+            sisaStok: p ? p.stok : 0,
+          }
+        })
+        const namaKasir = get().users.find((u) => u.id === kasirId)?.nama || 'Kasir'
+        syncService.broadcastStockMutation(mutasiItems, namaKasir)
+
         return trx
       },
 
@@ -637,28 +661,34 @@ export const useDataStore = create<DataState>()(
 )
 
 // ---------------------------------------------------------------------------
-// Sinkronisasi antar-tab (simulasi WebSocket LAN)
+// Sinkronisasi Multi-Perangkat (WLAN WebSocket + Shared Hosting Polling)
 // ---------------------------------------------------------------------------
-let applyingRemote = false
-const channel: BroadcastChannel | null =
-  typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('ipos-lan-sync') : null
+if (typeof window !== 'undefined') {
+  syncService.init()
 
-if (channel) {
-  channel.onmessage = (ev) => {
-    if (ev.data?.type === 'data-changed') {
-      applyingRemote = true
-      try {
-        useDataStore.persist.rehydrate()
-      } finally {
-        setTimeout(() => {
-          applyingRemote = false
-        }, 0)
+  // Listener event mutasi stok dari perangkat lain
+  syncService.onStockMutation((ev) => {
+    const state = useDataStore.getState()
+    const produksBaru = state.produk.map((p) => {
+      const item = ev.items.find((it) => it.produkId === p.id)
+      if (item) {
+        return { ...p, stok: item.sisaStok }
       }
-    }
-  }
-}
+      return p
+    })
 
-useDataStore.subscribe(() => {
-  if (applyingRemote || !channel) return
-  channel.postMessage({ type: 'data-changed' })
-})
+    // Update store secara reaktif
+    useDataStore.setState({ produk: produksBaru })
+
+    // Toast feedback visual instan di layar
+    const ringkasan = ev.items
+      .map((it) => `${it.namaProduk}: sisa ${it.sisaStok}`)
+      .join(', ')
+
+    useToast.getState().push({
+      tipe: 'info',
+      judul: `⚡ Stok Berkurang (${ev.kasirNama || 'Kasir Lain'})`,
+      pesan: ringkasan,
+    })
+  })
+}
