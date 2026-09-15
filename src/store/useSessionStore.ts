@@ -31,6 +31,7 @@ type SessionState = {
   cart: CartItem[]
   diskonNota: number
   shiftId: string | null
+  selectedShiftNomor: 1 | 2 | 3 | 4
   offlineMode: boolean
   pendingQueue: PendingTrx[]
   lastSyncAt: string | null
@@ -40,6 +41,7 @@ type SessionState = {
   setCurrentUser: (user: User | null) => void
 
   setShiftId: (id: string | null) => void
+  setSelectedShiftNomor: (nomor: 1 | 2 | 3 | 4) => void
   setOffline: (v: boolean) => void
 
   addToCart: (p: Produk, qty?: number) => void
@@ -62,15 +64,17 @@ export const useSessionStore = create<SessionState>()(
       cart: [],
       diskonNota: 0,
       shiftId: null,
+      selectedShiftNomor: 1,
       offlineMode: false,
       pendingQueue: [],
       lastSyncAt: null,
 
       login: (user) => set({ currentUser: user, logoutReason: null }),
-      logout: () => set({ currentUser: null, cart: [], shiftId: null, diskonNota: 0 }),
+      logout: () => set({ currentUser: null, cart: [], shiftId: null, diskonNota: 0, selectedShiftNomor: 1 }),
       setCurrentUser: (user) => set({ currentUser: user }),
 
       setShiftId: (id) => set({ shiftId: id }),
+      setSelectedShiftNomor: (nomor) => set({ selectedShiftNomor: nomor }),
       setOffline: (v) => set({ offlineMode: v }),
 
       addToCart: (p, qty = 1) => {
@@ -92,26 +96,34 @@ export const useSessionStore = create<SessionState>()(
         }
         set({ cart })
       },
-      setQty: (produkId, qty) =>
+      setQty: (produkId, qty) => {
+        if (qty <= 0) {
+          set({ cart: get().cart.filter((c) => c.produkId !== produkId) })
+          return
+        }
         set({
-          cart: get()
-            .cart.map((c) =>
-              c.produkId === produkId
-                ? { ...c, qty: Math.max(1, Math.min(c.stokTersedia, qty)) }
-                : c,
-            ),
-        }),
+          cart: get().cart.map((c) =>
+            c.produkId === produkId
+              ? {
+                  ...c,
+                  qty: Math.min(c.stokTersedia, qty),
+                  diskonItem: Math.min(c.diskonItem, c.hargaJual * Math.min(c.stokTersedia, qty)),
+                }
+              : c,
+          ),
+        })
+      },
       setDiskonItem: (produkId, diskon) =>
         set({
           cart: get().cart.map((c) =>
             c.produkId === produkId
-              ? { ...c, diskonItem: Math.max(0, Math.min(100, diskon)) }
+              ? { ...c, diskonItem: Math.max(0, Math.min(c.hargaJual * c.qty, diskon)) }
               : c,
           ),
         }),
       removeFromCart: (produkId) => set({ cart: get().cart.filter((c) => c.produkId !== produkId) }),
       clearCart: () => set({ cart: [], diskonNota: 0 }),
-      setDiskonNota: (v) => set({ diskonNota: Math.max(0, Math.min(100, v)) }),
+      setDiskonNota: (v) => set({ diskonNota: Math.max(0, v) }),
 
       queuePending: (trx) => set({ pendingQueue: [...get().pendingQueue, trx] }),
 
@@ -124,7 +136,7 @@ export const useSessionStore = create<SessionState>()(
             shiftId: p.shiftId,
             kasirId: p.kasirId,
             detail: p.detail.map((c, i) => {
-              const subtotal = Math.round(c.hargaJual * c.qty * (1 - c.diskonItem / 100))
+              const subtotal = Math.max(0, c.hargaJual * c.qty - (c.diskonItem || 0))
               return {
                 id: `DTL-${p.id}-${i}`,
                 produkId: c.produkId,

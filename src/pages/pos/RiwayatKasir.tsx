@@ -3,8 +3,24 @@ import type { Transaksi } from '@/types'
 import { useDataStore } from '@/store/useDataStore'
 import { useSessionStore } from '@/store/useSessionStore'
 import { useToast } from '@/store/useToast'
-import { rupiah, tanggalJam } from '@/lib/format'
+import { rupiah, tanggalJam, getShiftNomor } from '@/lib/format'
 import { Badge, Button, Card, DataTable, Input, Modal, PageHeader, Select } from '@/components/ui'
+
+const renderShiftBadge = (nomor: number) => {
+  const configs: Record<number, { bg: string; label: string }> = {
+    1: { bg: 'bg-emerald-100 border-emerald-300 text-emerald-800', label: 'Shift 1' },
+    2: { bg: 'bg-amber-100 border-amber-300 text-amber-800', label: 'Shift 2' },
+    3: { bg: 'bg-purple-100 border-purple-300 text-purple-800', label: 'Shift 3' },
+    4: { bg: 'bg-cyan-100 border-cyan-300 text-cyan-800', label: 'Shift 4' },
+  }
+  const c = configs[nomor] || configs[1]
+  return (
+    <span className={`inline-flex items-center gap-1 border px-2 py-0.5 text-xs font-bold ${c.bg}`}>
+      <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+      {c.label}
+    </span>
+  )
+}
 
 export function RiwayatKasir() {
   const { transaksi, shifts, users, returPelanggan } = useDataStore()
@@ -20,15 +36,25 @@ export function RiwayatKasir() {
 
   const shiftKasir = shifts.filter((s) => isAdmin || s.kasirId === currentUser?.id)
 
+  const getShiftNoForTrx = (shiftId: string): 1 | 2 | 3 | 4 => {
+    const s = shifts.find((x) => x.id === shiftId)
+    return getShiftNomor(s ?? (shiftId ? { id: shiftId } : null))
+  }
+
   const rows = useMemo(() => {
     const q = cari.toLowerCase()
     return transaksi.filter((t) => {
       const cocokKasir = !filterKasir || t.kasirId === filterKasir
-      const cocokShift = !filterShift || t.shiftId === filterShift
+      const shiftNo = getShiftNoForTrx(t.shiftId)
+      const cocokShift = !filterShift || (
+        ['1', '2', '3', '4'].includes(filterShift)
+          ? String(shiftNo) === filterShift
+          : t.shiftId === filterShift
+      )
       const cocokCari = !q || t.nomor.toLowerCase().includes(q)
       return cocokKasir && cocokShift && cocokCari
     })
-  }, [transaksi, filterKasir, filterShift, cari])
+  }, [transaksi, filterKasir, filterShift, cari, shifts])
 
   const namaKasir = (id: string) => users.find((u) => u.id === id)?.nama ?? id
   const shiftLabel = (id: string) => {
@@ -80,6 +106,10 @@ export function RiwayatKasir() {
           </Select>
           <Select value={filterShift} onChange={(e) => setFilterShift(e.target.value)}>
             <option value="">Semua shift</option>
+            <option value="1">Shift 1 (Pagi)</option>
+            <option value="2">Shift 2 (Siang)</option>
+            <option value="3">Shift 3 (Sore)</option>
+            <option value="4">Shift 4 (Malam)</option>
             {shiftKasir.slice(0, 40).map((s) => (
               <option key={s.id} value={s.id}>{tanggalJam(s.waktuBuka)} — {namaKasir(s.kasirId)}</option>
             ))}
@@ -101,7 +131,15 @@ export function RiwayatKasir() {
               </div>
             ) },
             { key: 'kasir', header: 'Kasir', render: (t) => namaKasir(t.kasirId) },
-            { key: 'shift', header: 'Shift', render: (t) => <span className="text-xs text-slate-500">{shiftLabel(t.shiftId)}</span> },
+            { key: 'shift', header: 'Shift', render: (t) => {
+              const shiftNo = getShiftNoForTrx(t.shiftId)
+              return (
+                <div className="flex items-center gap-1.5">
+                  {renderShiftBadge(shiftNo)}
+                  <span className="text-xs text-slate-500">{shiftLabel(t.shiftId)}</span>
+                </div>
+              )
+            } },
             { key: 'items', header: 'Item', align: 'right', render: (t) => t.detail.reduce((a, d) => a + d.qty, 0) },
             { key: 'metode', header: 'Bayar', render: (t) => <span className="text-xs capitalize">{t.metode}</span> },
             { key: 'total', header: 'Total', align: 'right', render: (t) => <span className="font-semibold">{rupiah(t.total)}</span> },

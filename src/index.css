@@ -10,6 +10,17 @@ body,
 
 body {
   @apply bg-slate-100 text-slate-800 antialiased;
+  overscroll-behavior: none;
+}
+
+/* Fallback browser tanpa dukungan unit dvh */
+@supports not (height: 100dvh) {
+  .h-dvh {
+    height: 100vh;
+  }
+  .min-h-dvh {
+    min-height: 100vh;
+  }
 }
 
 * {
@@ -23,7 +34,7 @@ body {
 }
 *::-webkit-scrollbar-thumb {
   background: #cbd5e1;
-  border-radius: 999px;
+  border-radius: 0;
 }
 
 @media print {

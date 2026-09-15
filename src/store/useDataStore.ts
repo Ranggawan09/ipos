@@ -93,7 +93,7 @@ export type DataState = {
   }) => void
 
   // POS
-  bukaShift: (kasirId: string, saldoAwal: number) => Shift
+  bukaShift: (kasirId: string, saldoAwal: number, shiftNomor?: 1 | 2 | 3 | 4) => Shift
   tutupShift: (shiftId: string, saldoAkhir: number) => void
   buatTransaksi: (input: {
     shiftId: string
@@ -444,10 +444,11 @@ export const useDataStore = create<DataState>()(
         })
       },
 
-      bukaShift: (kasirId, saldoAwal) => {
+      bukaShift: (kasirId, saldoAwal, shiftNomor) => {
         const shift: Shift = {
           id: `SHF-${Date.now()}`,
           kasirId,
+          shiftNomor: shiftNomor || 1,
           waktuBuka: new Date().toISOString(),
           saldoAwal,
           totalPenjualan: 0,
@@ -474,8 +475,8 @@ export const useDataStore = create<DataState>()(
         const produks = get().produk.map((p) => ({ ...p }))
         const now = new Date().toISOString()
         const subtotal = detail.reduce((a, d) => a + d.subtotal, 0)
-        const diskonNominal = Math.round((subtotal * diskonNota) / 100)
-        const total = subtotal - diskonNominal
+        const diskonNominal = Math.min(subtotal, Math.max(0, diskonNota))
+        const total = Math.max(0, subtotal - diskonNominal)
         const hpp = detail.reduce((a, d) => a + d.hargaBeli * d.qty, 0)
         const seq = get().transaksi.length + 1
         const trx: Transaksi = {

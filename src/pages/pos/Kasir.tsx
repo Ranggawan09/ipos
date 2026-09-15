@@ -11,43 +11,65 @@ import { syncService, type SyncStatus } from '@/lib/syncService'
 
 function BukaShift() {
   const { bukaShift } = useDataStore()
-  const { currentUser, setShiftId } = useSessionStore()
+  const { currentUser, setShiftId, selectedShiftNomor, setSelectedShiftNomor } = useSessionStore()
   const push = useToast((s) => s.push)
   const [saldo, setSaldo] = useState(200000)
+  const [shiftNo, setShiftNo] = useState<1 | 2 | 3 | 4>(selectedShiftNomor || 1)
 
   const buka = () => {
     if (!currentUser) return
-    const s = bukaShift(currentUser.id, saldo)
+    setSelectedShiftNomor(shiftNo)
+    const s = bukaShift(currentUser.id, saldo, shiftNo)
     setShiftId(s.id)
-    push({ tipe: 'sukses', judul: 'Shift dibuka', pesan: `Saldo kas awal ${rupiah(saldo)}` })
+    push({ tipe: 'sukses', judul: `Shift ${shiftNo} dibuka`, pesan: `Saldo kas awal ${rupiah(saldo)}` })
   }
 
   return (
     <div className="flex h-full items-center justify-center p-6">
-      <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="w-full max-w-md border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2" />
-            </svg>
+          <span className="flex h-11 w-11 items-center justify-center bg-emerald-50 text-emerald-600 font-bold">
+            POS
           </span>
           <div>
             <h2 className="text-base font-bold text-slate-800">Buka Shift Kasir</h2>
-            <p className="text-xs text-slate-500">Anda belum memiliki shift yang berjalan.</p>
+            <p className="text-xs text-slate-500">Pilih shift kerja dan modal kas awal.</p>
           </div>
         </div>
-        <div className="mb-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+        <div className="mb-3 bg-slate-50 px-3 py-2 text-sm text-slate-600">
           Kasir: <span className="font-semibold text-slate-800">{currentUser?.nama}</span>
+        </div>
+        <div className="mb-3">
+          <Label>Pilih Shift</Label>
+          <div className="grid grid-cols-4 gap-2">
+            {([1, 2, 3, 4] as const).map((num) => (
+              <button
+                key={num}
+                type="button"
+                onClick={() => setShiftNo(num)}
+                className={`flex flex-col items-center justify-center border py-2 text-xs font-semibold transition ${
+                  shiftNo === num
+                    ? 'border-emerald-600 bg-emerald-600 text-white shadow-xs'
+                    : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <span>Shift {num}</span>
+                <span className={`text-[10px] ${shiftNo === num ? 'text-emerald-100' : 'text-slate-400'}`}>
+                  {num === 1 ? 'Pagi' : num === 2 ? 'Siang' : num === 3 ? 'Sore' : 'Malam'}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
         <div className="mb-4">
           <Label>Saldo kas awal (modal laci)</Label>
           <Input type="number" value={saldo} onChange={(e) => setSaldo(Number(e.target.value))} />
         </div>
         <Button className="w-full" size="lg" variant="success" onClick={buka}>
-          Buka Shift Sekarang
+          Buka Shift {shiftNo} Sekarang
         </Button>
         <p className="mt-3 text-center text-[11px] text-slate-400">
-          Mencatat pembukaan shift beserta saldo kas awal.
+          Mencatat pembukaan shift {shiftNo} beserta saldo kas awal.
         </p>
       </div>
     </div>
@@ -55,12 +77,19 @@ function BukaShift() {
 }
 
 function StrukView({ trx, namaKasir }: { trx: Transaksi; namaKasir: string }) {
+  const subtotalKotor = trx.detail.reduce((a, d) => a + d.qty * d.hargaSatuan, 0)
+  const totalDiskonItem = trx.detail.reduce((a, d) => a + (d.diskonItem || 0), 0)
+  const diskonNota = trx.diskonNominal || 0
+  const totalDiskon = totalDiskonItem + diskonNota
+
   const items = trx.detail.map((d) => ({
     nama: d.namaProduk,
     qty: d.qty,
     harga: d.hargaSatuan,
+    diskonItem: d.diskonItem,
     subtotal: d.subtotal,
   }))
+
   const cetak = () =>
     cetakStruk({
       namaToko: 'TOKO PASAR JAYA',
@@ -69,8 +98,10 @@ function StrukView({ trx, namaKasir }: { trx: Transaksi; namaKasir: string }) {
       waktu: tanggalJam(trx.waktu),
       kasir: namaKasir,
       items,
-      subtotal: trx.subtotal,
-      diskon: trx.diskonNominal,
+      subtotal: subtotalKotor,
+      diskonItem: totalDiskonItem,
+      diskonNota: diskonNota,
+      diskon: totalDiskon,
       total: trx.total,
       metode: trx.metode.toUpperCase(),
       dibayar: trx.dibayar,
@@ -87,18 +118,35 @@ function StrukView({ trx, namaKasir }: { trx: Transaksi; namaKasir: string }) {
         <div className="flex justify-between"><span>Waktu</span><span>{tanggalJam(trx.waktu)}</span></div>
         <div className="flex justify-between"><span>Kasir</span><span>{namaKasir}</span></div>
         <div className="my-2 border-t border-dashed border-slate-300" />
-        {items.map((i, idx) => (
-          <div key={idx} className="mb-1">
-            <p>{i.nama}</p>
-            <div className="flex justify-between text-slate-500">
-              <span>{i.qty} x {angka(i.harga)}</span>
-              <span>{angka(i.subtotal)}</span>
+        {items.map((i, idx) => {
+          const hargaAsli = i.qty * i.harga
+          const diskon = i.diskonItem || 0
+          return (
+            <div key={idx} className="mb-1">
+              <p>{i.nama}</p>
+              <div className="flex justify-between text-slate-500">
+                <span>{i.qty} x {angka(i.harga)}</span>
+                <span>{angka(hargaAsli)}</span>
+              </div>
+              {diskon > 0 && (
+                <div className="flex justify-between text-slate-500 pl-2 text-[10px]">
+                  <span>Diskon</span>
+                  <span>-{angka(diskon)}</span>
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          )
+        })}
         <div className="my-2 border-t border-dashed border-slate-300" />
-        <div className="flex justify-between"><span>Subtotal</span><span>{angka(trx.subtotal)}</span></div>
-        <div className="flex justify-between"><span>Diskon</span><span>-{angka(trx.diskonNominal)}</span></div>
+        <div className="flex justify-between"><span>Subtotal</span><span>{angka(subtotalKotor)}</span></div>
+        {totalDiskonItem > 0 && diskonNota > 0 ? (
+          <>
+            <div className="flex justify-between text-slate-500"><span>Diskon Item</span><span>-{angka(totalDiskonItem)}</span></div>
+            <div className="flex justify-between text-slate-500"><span>Diskon Nota</span><span>-{angka(diskonNota)}</span></div>
+          </>
+        ) : totalDiskon > 0 ? (
+          <div className="flex justify-between text-slate-500"><span>Diskon</span><span>-{angka(totalDiskon)}</span></div>
+        ) : null}
         <div className="flex justify-between text-sm font-bold"><span>TOTAL</span><span>{angka(trx.total)}</span></div>
         <div className="flex justify-between"><span>{trx.metode.toUpperCase()}</span><span>{angka(trx.dibayar)}</span></div>
         <div className="flex justify-between"><span>Kembali</span><span>{angka(trx.kembalian)}</span></div>
@@ -135,6 +183,7 @@ export function KasirPOS() {
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(syncService.status)
   const [recentUpdatedIds, setRecentUpdatedIds] = useState<Set<string>>(new Set())
   const [qrModalOpen, setQrModalOpen] = useState(false)
+  const [mobileView, setMobileView] = useState<'catalog' | 'cart'>('catalog')
 
   const openShift = shifts.find((s) => s.kasirId === currentUser?.id && s.status === 'buka') ?? null
 
@@ -183,9 +232,11 @@ export function KasirPOS() {
       .slice(0, 60)
   }, [produk, cari, filterKat])
 
-  const subtotal = cart.reduce((a, c) => a + Math.round(c.hargaJual * c.qty * (1 - c.diskonItem / 100)), 0)
-  const diskonNominal = Math.round((subtotal * diskonNota) / 100)
-  const total = subtotal - diskonNominal
+  const subtotalKotor = cart.reduce((a, c) => a + c.hargaJual * c.qty, 0)
+  const totalDiskonItem = cart.reduce((a, c) => a + (c.diskonItem || 0), 0)
+  const subtotal = Math.max(0, subtotalKotor - totalDiskonItem)
+  const diskonNominal = Math.min(subtotal, Math.max(0, diskonNota))
+  const total = Math.max(0, subtotal - diskonNominal)
   const totalItem = cart.reduce((a, c) => a + c.qty, 0)
 
   const handleBarcode = (e: React.FormEvent) => {
@@ -261,7 +312,7 @@ export function KasirPOS() {
         hargaBeli: c.hargaBeli,
         qty: c.qty,
         diskonItem: c.diskonItem,
-        subtotal: Math.round(c.hargaJual * c.qty * (1 - c.diskonItem / 100)),
+        subtotal: Math.max(0, c.hargaJual * c.qty - (c.diskonItem || 0)),
       })),
       diskonNota,
       metode,
@@ -270,6 +321,7 @@ export function KasirPOS() {
     clearCart()
     setBayarOpen(false)
     setStruk(trx)
+    setMobileView('catalog')
     push({ tipe: 'sukses', judul: 'Transaksi berhasil', pesan: `Nomor ${trx.nomor}` })
   }
 
@@ -278,7 +330,7 @@ export function KasirPOS() {
   return (
     <div className="flex h-full">
       {/* Kiri: katalog produk */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className={`flex min-w-0 flex-1 flex-col ${mobileView === 'cart' ? 'hidden md:flex' : 'flex'}`}>
         <div className="border-b border-slate-200 bg-white p-3">
           {/* Status Bar Sinkronisasi Multi-Perangkat */}
           <div className="mb-2.5 flex items-center justify-between rounded-lg border border-slate-200/80 bg-slate-50/80 px-3 py-1.5 text-xs shadow-xs">
@@ -304,6 +356,19 @@ export function KasirPOS() {
               )}
               <span className="hidden font-mono text-[11px] text-slate-500 sm:inline">
                 ID: {syncService.getDeviceId()}
+              </span>
+              <span
+                className={`inline-flex items-center px-2 py-0.5 text-xs font-bold text-white shadow-xs ${
+                  openShift.shiftNomor === 1
+                    ? 'bg-emerald-600'
+                    : openShift.shiftNomor === 2
+                      ? 'bg-amber-600'
+                      : openShift.shiftNomor === 3
+                        ? 'bg-purple-600'
+                        : 'bg-cyan-700'
+                }`}
+              >
+                Shift {openShift.shiftNomor || 1}
               </span>
             </div>
             <button
@@ -391,14 +456,48 @@ export function KasirPOS() {
             <p className="py-16 text-center text-sm text-slate-400">Tidak ada produk yang cocok.</p>
           )}
         </div>
+
+        {/* Bar Checkout Mobile (hanya tampil di HP jika ada item di keranjang) */}
+        {cart.length > 0 && (
+          <div className="border-t border-slate-200 bg-white p-2.5 md:hidden">
+            <button
+              type="button"
+              onClick={() => setMobileView('cart')}
+              className="flex w-full items-center justify-between rounded-lg bg-emerald-600 px-4 py-2.5 font-semibold text-white shadow-md active:bg-emerald-700 transition"
+            >
+              <span className="flex items-center gap-1.5 text-xs">
+                <span>🛒</span>
+                <span>{totalItem} Item</span>
+              </span>
+              <span className="text-sm font-bold">{rupiah(total)}</span>
+              <span className="rounded bg-emerald-700 px-2 py-0.5 text-xs font-semibold">Buka Keranjang &rarr;</span>
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Kanan: keranjang */}
-      <div className="flex w-[380px] shrink-0 flex-col border-l border-slate-200 bg-white">
+      {/* Kanan: keranjang (fullscreen di mobile jika aktif, kolom di tablet & desktop) */}
+      <div
+        className={`flex flex-col border-l border-slate-200 bg-white md:w-[330px] lg:w-[370px] xl:w-[400px] shrink-0 ${
+          mobileView === 'catalog' ? 'hidden md:flex' : 'flex flex-1 w-full md:flex-initial'
+        }`}
+      >
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-          <div>
-            <h3 className="text-sm font-bold text-slate-800">Keranjang</h3>
-            <p className="text-[11px] text-slate-400">{totalItem} item</p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setMobileView('catalog')}
+              className="rounded-lg border border-slate-200 bg-slate-50 p-1.5 text-slate-600 hover:bg-slate-100 md:hidden"
+              title="Kembali ke katalog"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M19 12H5M12 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <div>
+              <h3 className="text-sm font-bold text-slate-800">Keranjang</h3>
+              <p className="text-[11px] text-slate-400">{totalItem} item</p>
+            </div>
           </div>
           <Button size="sm" variant="ghost" className="text-rose-600" onClick={clearCart} disabled={cart.length === 0}>
             Kosongkan
@@ -428,18 +527,21 @@ export function KasirPOS() {
                     <button onClick={() => setQty(c.produkId, c.qty + 1)} className="h-7 w-7 rounded-md border border-slate-200 bg-white text-sm font-bold text-slate-600 hover:bg-slate-100">+</button>
                   </div>
                   <div className="flex items-center gap-1">
-                    <span className="text-[10px] text-slate-400">diskon</span>
-                    <input
-                      type="number"
-                      value={c.diskonItem || ''}
-                      onChange={(e) => setDiskonItem(c.produkId, Number(e.target.value))}
-                      placeholder="0"
-                      className="w-12 rounded-md border border-slate-200 px-1 py-0.5 text-right text-xs"
-                    />
-                    <span className="text-[10px] text-slate-400">%</span>
+                    <span className="text-[10px] text-slate-400">Pot.</span>
+                    <div className="relative flex items-center">
+                      <span className="pointer-events-none absolute left-1.5 text-[10px] text-slate-400">Rp</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={c.diskonItem || ''}
+                        onChange={(e) => setDiskonItem(c.produkId, Number(e.target.value))}
+                        placeholder="0"
+                        className="w-20 rounded-md border border-slate-200 pl-6 pr-1.5 py-0.5 text-right text-xs"
+                      />
+                    </div>
                   </div>
                   <span className="text-sm font-semibold text-slate-700">
-                    {rupiah(Math.round(c.hargaJual * c.qty * (1 - c.diskonItem / 100)))}
+                    {rupiah(Math.max(0, c.hargaJual * c.qty - (c.diskonItem || 0)))}
                   </span>
                 </div>
               </div>
@@ -451,22 +553,30 @@ export function KasirPOS() {
           <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
             <span>Diskon nota</span>
             <div className="flex items-center gap-1">
-              <input
-                type="number"
-                value={diskonNota || ''}
-                onChange={(e) => setDiskonNota(Number(e.target.value))}
-                placeholder="0"
-                className="w-14 rounded-md border border-slate-200 px-1.5 py-0.5 text-right text-xs"
-              />
-              <span>%</span>
+              <div className="relative flex items-center">
+                <span className="pointer-events-none absolute left-2 text-xs text-slate-400">Rp</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={diskonNota || ''}
+                  onChange={(e) => setDiskonNota(Number(e.target.value))}
+                  placeholder="0"
+                  className="w-28 rounded-md border border-slate-200 pl-7 pr-2 py-0.5 text-right text-xs font-medium"
+                />
+              </div>
             </div>
           </div>
           <div className="mb-1 flex justify-between text-sm text-slate-500">
-            <span>Subtotal</span><span>{rupiah(subtotal)}</span>
+            <span>Subtotal</span><span>{rupiah(subtotalKotor)}</span>
           </div>
+          {totalDiskonItem > 0 && (
+            <div className="mb-1 flex justify-between text-sm text-rose-500">
+              <span>Diskon item</span><span>-{rupiah(totalDiskonItem)}</span>
+            </div>
+          )}
           {diskonNominal > 0 && (
             <div className="mb-1 flex justify-between text-sm text-rose-500">
-              <span>Diskon</span><span>-{rupiah(diskonNominal)}</span>
+              <span>Diskon nota</span><span>-{rupiah(diskonNominal)}</span>
             </div>
           )}
           <div className="mb-3 flex items-center justify-between border-t border-slate-100 pt-2">

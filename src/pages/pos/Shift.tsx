@@ -2,8 +2,24 @@ import { useMemo, useState } from 'react'
 import { useDataStore } from '@/store/useDataStore'
 import { useSessionStore } from '@/store/useSessionStore'
 import { useToast } from '@/store/useToast'
-import { rupiah, tanggalJam } from '@/lib/format'
+import { rupiah, tanggalJam, getShiftNomor } from '@/lib/format'
 import { Badge, Button, Card, DataTable, Input, Label, Modal, PageHeader, StatCard } from '@/components/ui'
+
+const renderShiftBadge = (nomor: number) => {
+  const configs: Record<number, { bg: string; label: string }> = {
+    1: { bg: 'bg-emerald-100 border-emerald-300 text-emerald-800', label: 'Shift 1' },
+    2: { bg: 'bg-amber-100 border-amber-300 text-amber-800', label: 'Shift 2' },
+    3: { bg: 'bg-purple-100 border-purple-300 text-purple-800', label: 'Shift 3' },
+    4: { bg: 'bg-cyan-100 border-cyan-300 text-cyan-800', label: 'Shift 4' },
+  }
+  const c = configs[nomor] || configs[1]
+  return (
+    <span className={`inline-flex items-center gap-1 border px-2 py-0.5 text-xs font-bold ${c.bg}`}>
+      <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+      {c.label}
+    </span>
+  )
+}
 
 export function ShiftPage() {
   const { shifts, users, transaksi, tutupShift } = useDataStore()
@@ -13,13 +29,18 @@ export function ShiftPage() {
   const isAdmin = currentUser?.role === 'admin'
   const [tutupModal, setTutupModal] = useState(false)
   const [saldoAkhir, setSaldoAkhir] = useState(0)
+  const [filterShiftNomor, setFilterShiftNomor] = useState<string>('semua')
 
   const shiftSaya = shifts.find((s) => s.kasirId === currentUser?.id && s.status === 'buka') ?? null
 
-  const rows = useMemo(
-    () => shifts.filter((s) => isAdmin || s.kasirId === currentUser?.id),
-    [shifts, isAdmin, currentUser?.id],
-  )
+  const rows = useMemo(() => {
+    return shifts.filter((s) => {
+      const cocokUser = isAdmin || s.kasirId === currentUser?.id
+      const no = getShiftNomor(s)
+      const cocokShift = filterShiftNomor === 'semua' || String(no) === filterShiftNomor
+      return cocokUser && cocokShift
+    })
+  }, [shifts, isAdmin, currentUser?.id, filterShiftNomor])
 
   const namaKasir = (id: string) => users.find((u) => u.id === id)?.nama ?? id
 
@@ -65,6 +86,7 @@ export function ShiftPage() {
         <Card
           className="mb-4 border-amber-200 bg-amber-50/50"
           title="Shift Anda Saat Ini"
+          action={renderShiftBadge(getShiftNomor(shiftSaya))}
           subtitle={`Dibuka ${tanggalJam(shiftSaya.waktuBuka)}`}
         >
           <div className="grid gap-3 sm:grid-cols-4">
@@ -95,11 +117,41 @@ export function ShiftPage() {
         </Card>
       )}
 
-      <Card title="Daftar Shift" action={<Badge warna="blue">FR-POS-08</Badge>}>
+      <Card
+        title="Daftar Shift"
+        action={
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-slate-500">Filter:</span>
+              <select
+                value={filterShiftNomor}
+                onChange={(e) => setFilterShiftNomor(e.target.value)}
+                className="border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700"
+              >
+                <option value="semua">Semua Shift (1–4)</option>
+                <option value="1">Shift 1 (Pagi)</option>
+                <option value="2">Shift 2 (Siang)</option>
+                <option value="3">Shift 3 (Sore)</option>
+                <option value="4">Shift 4 (Malam)</option>
+              </select>
+            </div>
+            <Badge warna="blue">FR-POS-08</Badge>
+          </div>
+        }
+      >
         <DataTable
           data={rows}
           kolom={[
-            { key: 'kasir', header: 'Kasir', render: (s) => <span className="font-medium text-slate-700">{namaKasir(s.kasirId)}</span> },
+            {
+              key: 'kasir',
+              header: 'Kasir & Shift',
+              render: (s) => (
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-slate-700">{namaKasir(s.kasirId)}</span>
+                  {renderShiftBadge(getShiftNomor(s))}
+                </div>
+              ),
+            },
             { key: 'buka', header: 'Buka', render: (s) => <span className="text-xs text-slate-500">{tanggalJam(s.waktuBuka)}</span> },
             { key: 'tutup', header: 'Tutup', render: (s) => <span className="text-xs text-slate-500">{s.waktuTutup ? tanggalJam(s.waktuTutup) : '-'}</span> },
             { key: 'saldoAwal', header: 'Saldo Awal', align: 'right', render: (s) => rupiah(s.saldoAwal) },

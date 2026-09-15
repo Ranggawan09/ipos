@@ -242,8 +242,8 @@ export function buildShiftDanTransaksi(produk: Produk[]) {
         for (let i = 0; i < nItem; i++) {
           const p = pick(produk)
           const qty = int(1, 4)
-          const diskonItem = rnd() < 0.12 ? pick([5, 10]) : 0
-          const subtotalItem = Math.round(p.hargaJual * qty * (1 - diskonItem / 100))
+          const diskonItem = rnd() < 0.12 ? pick([2000, 5000]) : 0
+          const subtotalItem = Math.max(0, p.hargaJual * qty - diskonItem)
           detail.push({
             id: `DTL-${trxNo}-${i + 1}`,
             produkId: p.id,
@@ -258,9 +258,9 @@ export function buildShiftDanTransaksi(produk: Produk[]) {
           subtotal += subtotalItem
           hpp += p.hargaBeli * qty
         }
-        const diskonNota = rnd() < 0.08 ? 5 : 0
-        const diskonNominal = Math.round((subtotal * diskonNota) / 100)
-        const total = subtotal - diskonNominal
+        const diskonNota = rnd() < 0.08 ? 10000 : 0
+        const diskonNominal = Math.min(subtotal, Math.max(0, diskonNota))
+        const total = Math.max(0, subtotal - diskonNominal)
         const metode = rnd() < 0.7 ? 'tunai' : pick<MetodePembayaran>(['qris', 'debit'])
         const dibayar = metode === 'tunai' ? Math.ceil(total / 5000) * 5000 : total
         const waktu = isoDaysAgo(hari, jamBuka + int(0, 5), int(0, 59))
@@ -307,6 +307,7 @@ export function buildShiftDanTransaksi(produk: Produk[]) {
       shifts.push({
         id: shiftId,
         kasirId,
+        shiftNomor: (((shiftNo - 1) % 4) + 1) as 1 | 2 | 3 | 4,
         waktuBuka,
         waktuTutup,
         saldoAwal,

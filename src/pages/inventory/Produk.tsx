@@ -22,6 +22,7 @@ export function Produk() {
   const [modal, setModal] = useState(false)
   const [edit, setEdit] = useState<TProduk | null>(null)
   const [form, setForm] = useState<Omit<TProduk, 'id'>>(kosong)
+  const [marginInput, setMarginInput] = useState<string>('')
   const [hapusTarget, setHapusTarget] = useState<TProduk | null>(null)
 
   const katNama = (id: string) => kategori.find((k) => k.id === id)?.nama ?? '-'
@@ -44,6 +45,7 @@ export function Produk() {
 
   const bukaTambah = () => {
     setEdit(null)
+    setMarginInput('20')
     setForm({ ...kosong, kategoriId: kategori[0]?.id ?? '', sku: `SKU${String(produk.length + 1).padStart(4, '0')}`, barcode: String(8990000000 + produk.length + 1) })
     setModal(true)
   }
@@ -51,7 +53,40 @@ export function Produk() {
   const bukaEdit = (p: TProduk) => {
     setEdit(p)
     setForm({ ...p })
+    const pct = p.hargaBeli > 0 ? ((p.hargaJual - p.hargaBeli) / p.hargaBeli) * 100 : 0
+    const rounded = Math.round(pct * 10) / 10
+    setMarginInput(p.hargaBeli > 0 ? String(rounded) : '')
     setModal(true)
+  }
+
+  const handleMarginChange = (val: string) => {
+    setMarginInput(val)
+    const pct = parseFloat(val)
+    if (!isNaN(pct) && form.hargaBeli > 0) {
+      const newJual = Math.round(form.hargaBeli * (1 + pct / 100))
+      setForm((prev) => ({ ...prev, hargaJual: Math.max(0, newJual) }))
+    }
+  }
+
+  const handleHargaBeliChange = (beliVal: number) => {
+    const beli = Math.max(0, beliVal)
+    const pct = parseFloat(marginInput)
+    if (!isNaN(pct) && marginInput !== '' && beli > 0) {
+      const newJual = Math.round(beli * (1 + pct / 100))
+      setForm((prev) => ({ ...prev, hargaBeli: beli, hargaJual: Math.max(0, newJual) }))
+    } else {
+      setForm((prev) => ({ ...prev, hargaBeli: beli }))
+    }
+  }
+
+  const handleHargaJualChange = (jualVal: number) => {
+    const jual = Math.max(0, jualVal)
+    setForm((prev) => ({ ...prev, hargaJual: jual }))
+    if (form.hargaBeli > 0) {
+      const pct = ((jual - form.hargaBeli) / form.hargaBeli) * 100
+      const rounded = Math.round(pct * 10) / 10
+      setMarginInput(String(rounded))
+    }
   }
 
   const simpan = () => {
@@ -71,20 +106,19 @@ export function Produk() {
     setHapusTarget(null)
   }
 
-  const margin = form.hargaJual - form.hargaBeli
-  const marginPct = form.hargaBeli > 0 ? (margin / form.hargaBeli) * 100 : 0
+  const isOwner = currentUser?.role === 'owner'
 
   return (
     <>
       <PageHeader
         judul="Data Produk"
-        deskripsi="Kelola seluruh item barang toko beserta harga dan batas stok minimum."
+        deskripsi={isOwner ? "Pantauan stok dan harga produk toko (mode baca owner)." : "Kelola seluruh item barang toko beserta harga dan batas stok minimum."}
         aksi={
           <>
             <Button variant="secondary" onClick={() => setCari('')}>
               {rows.length} dari {produk.length} produk
             </Button>
-            <Button onClick={bukaTambah}>Tambah Produk</Button>
+            {!isOwner && <Button onClick={bukaTambah}>Tambah Produk</Button>}
           </>
         }
       />
@@ -173,8 +207,14 @@ export function Produk() {
               : <Badge warna="green">Aman</Badge> },
             { key: 'aksi', header: '', align: 'right', render: (p) => (
               <div className="flex justify-end gap-1">
-                <Button size="sm" variant="ghost" onClick={() => bukaEdit(p)}>Ubah</Button>
-                <Button size="sm" variant="ghost" className="text-rose-600" onClick={() => setHapusTarget(p)}>Hapus</Button>
+                {isOwner ? (
+                  <Button size="sm" variant="ghost" onClick={() => bukaEdit(p)}>Lihat</Button>
+                ) : (
+                  <>
+                    <Button size="sm" variant="ghost" onClick={() => bukaEdit(p)}>Ubah</Button>
+                    <Button size="sm" variant="ghost" className="text-rose-600" onClick={() => setHapusTarget(p)}>Hapus</Button>
+                  </>
+                )}
               </div>
             ) },
           ]}
@@ -185,13 +225,17 @@ export function Produk() {
       <Modal
         open={modal}
         onClose={() => setModal(false)}
-        title={edit ? 'Ubah Produk' : 'Tambah Produk'}
+        title={isOwner ? 'Detail Produk (Read-Only)' : edit ? 'Ubah Produk' : 'Tambah Produk'}
         lebar="max-w-2xl"
         footer={
-          <>
-            <Button variant="secondary" onClick={() => setModal(false)}>Batal</Button>
-            <Button onClick={simpan}>Simpan</Button>
-          </>
+          isOwner ? (
+            <Button variant="secondary" onClick={() => setModal(false)}>Tutup</Button>
+          ) : (
+            <>
+              <Button variant="secondary" onClick={() => setModal(false)}>Batal</Button>
+              <Button onClick={simpan}>Simpan</Button>
+            </>
+          )
         }
       >
         <div className="grid gap-4 md:grid-cols-2">
@@ -217,21 +261,63 @@ export function Produk() {
             <Label>Satuan</Label>
             <Input value={form.satuan} onChange={(e) => setForm({ ...form, satuan: e.target.value })} />
           </div>
-          <div>
-            <Label>Harga beli</Label>
-            <Input
-              type="number"
-              value={form.hargaBeli}
-              onChange={(e) => setForm({ ...form, hargaBeli: Number(e.target.value) })}
-            />
-          </div>
-          <div>
-            <Label>Harga jual</Label>
-            <Input
-              type="number"
-              value={form.hargaJual}
-              onChange={(e) => setForm({ ...form, hargaJual: Number(e.target.value) })}
-            />
+          <div className="md:col-span-2 rounded-lg border border-slate-200 bg-slate-50/60 p-3 space-y-2">
+            <p className="text-xs font-semibold text-slate-700">Penetapan Harga & Margin</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div>
+                <Label>Harga Beli (Modal)</Label>
+                <div className="relative flex items-center">
+                  <span className="pointer-events-none absolute left-2.5 text-xs text-slate-400">Rp</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={form.hargaBeli || ''}
+                    onChange={(e) => handleHargaBeliChange(Number(e.target.value))}
+                    placeholder="0"
+                    className="pl-8"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label>Margin (%)</Label>
+                <div className="relative flex items-center">
+                  <Input
+                    type="number"
+                    step="0.1"
+                    value={marginInput}
+                    onChange={(e) => handleMarginChange(e.target.value)}
+                    placeholder="0"
+                    className="pr-7 font-semibold text-emerald-600"
+                  />
+                  <span className="pointer-events-none absolute right-2.5 text-xs font-bold text-slate-400">%</span>
+                </div>
+              </div>
+              <div>
+                <Label>Harga Jual</Label>
+                <div className="relative flex items-center">
+                  <span className="pointer-events-none absolute left-2.5 text-xs text-slate-400">Rp</span>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={form.hargaJual || ''}
+                    onChange={(e) => handleHargaJualChange(Number(e.target.value))}
+                    placeholder="0"
+                    className="pl-8 font-semibold text-slate-800"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-1 text-xs text-slate-500 pt-1.5 border-t border-slate-200/60">
+              <span>
+                Laba kotor per unit: <span className="font-semibold text-emerald-700">{rupiah(form.hargaJual - form.hargaBeli)}</span>
+                <span className="ml-1 text-[11px] text-slate-400">
+                  ({form.hargaBeli > 0 ? (((form.hargaJual - form.hargaBeli) / form.hargaBeli) * 100).toFixed(1) : '0'}%)
+                </span>
+              </span>
+              <span className="text-[11px] text-slate-400">
+                💡 Harga jual otomatis dihitung dari harga beli + margin %
+              </span>
+            </div>
           </div>
           <div>
             <Label>Stok</Label>
@@ -248,14 +334,6 @@ export function Produk() {
               value={form.stokMinimum}
               onChange={(e) => setForm({ ...form, stokMinimum: Number(e.target.value) })}
             />
-          </div>
-          <div className="md:col-span-2">
-            <div className="flex items-center gap-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
-              <span>Margin: <span className="font-semibold">{rupiah(margin)}</span></span>
-              <span className={marginPct >= 0 ? 'text-emerald-600' : 'text-rose-600'}>
-                {marginPct.toFixed(1)}%
-              </span>
-            </div>
           </div>
           <div className="md:col-span-2">
             <label className="flex items-center gap-2 text-sm text-slate-600">

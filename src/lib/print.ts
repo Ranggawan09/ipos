@@ -1,13 +1,23 @@
 // Cetak struk thermal 80mm & laporan melalui dialog print browser.
 
+export type StrukItem = {
+  nama: string
+  qty: number
+  harga: number
+  diskonItem?: number
+  subtotal: number
+}
+
 export type StrukData = {
   namaToko: string
   alamat: string
   nomor: string
   waktu: string
   kasir: string
-  items: { nama: string; qty: number; harga: number; subtotal: number }[]
+  items: StrukItem[]
   subtotal: number
+  diskonItem?: number
+  diskonNota?: number
   diskon: number
   total: number
   metode: string
@@ -24,13 +34,20 @@ export function cetakStruk(data: StrukData) {
     return
   }
   const items = data.items
-    .map(
-      (i) => `
+    .map((i) => {
+      const hargaAsli = i.qty * i.harga
+      const diskon = i.diskonItem || 0
+      const diskonRow =
+        diskon > 0
+          ? `<div class="row" style="padding-left: 8px; font-size: 11px;"><span>Diskon</span><span>-${rp(diskon)}</span></div>`
+          : ''
+      return `
       <div class="item">
         <div>${i.nama}</div>
-        <div class="row"><span>${i.qty} x ${rp(i.harga)}</span><span>${rp(i.subtotal)}</span></div>
-      </div>`,
-    )
+        <div class="row"><span>${i.qty} x ${rp(i.harga)}</span><span>${rp(hargaAsli)}</span></div>
+        ${diskonRow}
+      </div>`
+    })
     .join('')
 
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Struk ${data.nomor}</title>
@@ -55,7 +72,14 @@ export function cetakStruk(data: StrukData) {
     ${items}
     <div class="line"></div>
     <div class="row"><span>Subtotal</span><span>${rp(data.subtotal)}</span></div>
-    <div class="row"><span>Diskon</span><span>-${rp(data.diskon)}</span></div>
+    ${
+      data.diskonItem && data.diskonNota
+        ? `<div class="row"><span>Diskon Item</span><span>-${rp(data.diskonItem)}</span></div>
+    <div class="row"><span>Diskon Nota</span><span>-${rp(data.diskonNota)}</span></div>`
+        : data.diskon > 0
+          ? `<div class="row"><span>Diskon</span><span>-${rp(data.diskon)}</span></div>`
+          : ''
+    }
     <div class="row bold big"><span>TOTAL</span><span>${rp(data.total)}</span></div>
     <div class="row"><span>${data.metode}</span><span>${rp(data.dibayar)}</span></div>
     <div class="row"><span>Kembali</span><span>${rp(data.kembalian)}</span></div>

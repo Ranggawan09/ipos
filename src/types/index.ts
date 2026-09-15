@@ -75,7 +75,7 @@ export type DetailTransaksi = {
   hargaSatuan: number
   hargaBeli: number
   qty: number
-  diskonItem: number // persen
+  diskonItem: number // nominal rupiah
   subtotal: number
 }
 
@@ -89,7 +89,7 @@ export type Transaksi = {
   pelanggan?: string
   detail: DetailTransaksi[]
   subtotal: number
-  diskonNota: number // persen
+  diskonNota: number // nominal rupiah
   diskonNominal: number
   total: number
   hpp: number
@@ -105,6 +105,7 @@ export type Transaksi = {
 export type Shift = {
   id: string
   kasirId: string
+  shiftNomor?: 1 | 2 | 3 | 4
   waktuBuka: string
   waktuTutup?: string
   saldoAwal: number

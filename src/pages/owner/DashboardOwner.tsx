@@ -1,16 +1,12 @@
 import { useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useDataStore } from '@/store/useDataStore'
-import { useSessionStore } from '@/store/useSessionStore'
 import { hanyaSelesai, labaKotor, produkTerlaris, ringkasPerHari, stokKritis, totalHpp, totalPenjualan } from '@/store/selectors'
 import { awalBulanIni, awalHariIni, angka, rupiah, rupiahShort } from '@/lib/format'
-import { Badge, Button, Card, EmptyState, StatCard } from '@/components/ui'
+import { Badge, Card, EmptyState, StatCard } from '@/components/ui'
 
 export function DashboardOwner() {
-  const navigate = useNavigate()
   const { transaksi, produk, pengeluaran, kategori } = useDataStore()
-  const { currentUser, logout, lastSyncAt } = useSessionStore()
 
   const mulaiHari = awalHariIni().toISOString()
   const mulaiBulan = awalBulanIni().toISOString()
@@ -43,42 +39,16 @@ export function DashboardOwner() {
   )
 
   return (
-    <div className="min-h-screen bg-slate-100">
-      <header className="border-b border-slate-800 bg-slate-900">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white">iPOS</span>
-            <div>
-              <p className="text-sm font-semibold text-white">Dashboard Owner</p>
-              <p className="text-[11px] text-slate-400">Pantauan kinerja toko dari jarak jauh</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <Badge warna="blue">Akses baca (read-only)</Badge>
-            <div className="hidden text-right sm:block">
-              <p className="text-xs font-medium text-white">{currentUser?.nama}</p>
-              <p className="text-[10px] text-slate-400">
-                Data cloud {lastSyncAt ? `· sinkron ${new Date(lastSyncAt).toLocaleTimeString('id-ID')}` : '· menunggu sinkron'}
-              </p>
-            </div>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => { logout(); navigate('/login') }}
-            >
-              Keluar
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-6xl p-4 lg:p-6">
-        <div className="mb-5">
+    <div className="mx-auto max-w-7xl p-4 lg:p-6">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
+        <div>
           <h1 className="text-xl font-bold text-slate-800">Ringkasan Kinerja Toko</h1>
           <p className="mt-1 text-sm text-slate-500">
             Data diperbarui otomatis dari server lokal toko melalui sinkronisasi cloud.
           </p>
         </div>
+        <Badge warna="blue">Akses baca (read-only)</Badge>
+      </div>
 
         <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard label="Penjualan Hari Ini" value={rupiah(omzetHariIni)} hint={`${trxHariIni.length} transaksi`} tone="green" />
@@ -180,10 +150,9 @@ export function DashboardOwner() {
           </Card>
         </div>
 
-        <p className="mt-6 text-center text-[11px] text-slate-400">
-          Demo SRS v1.0 — dashboard owner bersifat read-only dan tidak dapat mengubah data operasional.
-        </p>
-      </main>
+      <p className="mt-6 text-center text-[11px] text-slate-400">
+        Demo SRS v1.0 — dashboard owner bersifat read-only dan tidak dapat mengubah data operasional.
+      </p>
     </div>
   )
 }

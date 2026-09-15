@@ -50,3 +50,13 @@ export const awalBulanIni = () => {
   const d = new Date()
   return new Date(d.getFullYear(), d.getMonth(), 1)
 }
+
+export const getShiftNomor = (shift?: { id: string; shiftNomor?: 1 | 2 | 3 | 4 } | null): 1 | 2 | 3 | 4 => {
+  if (shift?.shiftNomor && [1, 2, 3, 4].includes(shift.shiftNomor)) {
+    return shift.shiftNomor
+  }
+  if (!shift?.id) return 1
+  const num = parseInt(shift.id.replace(/\D/g, '').slice(-2) || '1', 10)
+  return (((num - 1) % 4) + 1) as 1 | 2 | 3 | 4
+}
+

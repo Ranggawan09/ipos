@@ -62,17 +62,21 @@ export function Pengeluaran() {
 
   const namaUser = (id: string) => users.find((u) => u.id === id)?.nama ?? id
 
+  const isOwner = currentUser?.role === 'owner'
+
   return (
     <>
       <PageHeader
         judul="Pengeluaran Operasional"
-        deskripsi="Pencatatan biaya operasional non-barang: listrik, sewa, gaji, dan lain-lain."
+        deskripsi={isOwner ? "Pantauan biaya operasional non-barang toko (mode baca owner)." : "Pencatatan biaya operasional non-barang: listrik, sewa, gaji, dan lain-lain."}
         aksi={
           <>
             <FR kode="FR-FIN-03" />
-            <Button onClick={() => { setEdit(null); setForm({ ...kosong, tanggal: toDateInput(new Date().toISOString()) }); setModal(true) }}>
-              Catat Pengeluaran
-            </Button>
+            {!isOwner && (
+              <Button onClick={() => { setEdit(null); setForm({ ...kosong, tanggal: toDateInput(new Date().toISOString()) }); setModal(true) }}>
+                Catat Pengeluaran
+              </Button>
+            )}
           </>
         }
       />
@@ -113,8 +117,14 @@ export function Pengeluaran() {
               { key: 'jumlah', header: 'Jumlah', align: 'right', render: (p) => <span className="font-medium text-rose-600">{rupiah(p.jumlah)}</span> },
               { key: 'aksi', header: '', align: 'right', render: (p) => (
                 <div className="flex justify-end gap-1">
-                  <Button size="sm" variant="ghost" onClick={() => { setEdit(p); setForm({ ...p, tanggal: toDateInput(p.tanggal) }); setModal(true) }}>Ubah</Button>
-                  <Button size="sm" variant="ghost" className="text-rose-600" onClick={() => setHapus(p)}>Hapus</Button>
+                  {isOwner ? (
+                    <Button size="sm" variant="ghost" onClick={() => { setEdit(p); setForm({ ...p, tanggal: toDateInput(p.tanggal) }); setModal(true) }}>Lihat</Button>
+                  ) : (
+                    <>
+                      <Button size="sm" variant="ghost" onClick={() => { setEdit(p); setForm({ ...p, tanggal: toDateInput(p.tanggal) }); setModal(true) }}>Ubah</Button>
+                      <Button size="sm" variant="ghost" className="text-rose-600" onClick={() => setHapus(p)}>Hapus</Button>
+                    </>
+                  )}
                 </div>
               ) },
             ]}
@@ -125,8 +135,17 @@ export function Pengeluaran() {
       <Modal
         open={modal}
         onClose={() => setModal(false)}
-        title={edit ? 'Ubah Pengeluaran' : 'Catat Pengeluaran'}
-        footer={<><Button variant="secondary" onClick={() => setModal(false)}>Batal</Button><Button onClick={simpan}>Simpan</Button></>}
+        title={isOwner ? 'Detail Pengeluaran (Read-Only)' : edit ? 'Ubah Pengeluaran' : 'Catat Pengeluaran'}
+        footer={
+          isOwner ? (
+            <Button variant="secondary" onClick={() => setModal(false)}>Tutup</Button>
+          ) : (
+            <>
+              <Button variant="secondary" onClick={() => setModal(false)}>Batal</Button>
+              <Button onClick={simpan}>Simpan</Button>
+            </>
+          )
+        }
       >
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">

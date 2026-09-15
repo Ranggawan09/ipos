@@ -1,16 +1,36 @@
 import { useMemo, useState } from 'react'
 import type { Transaksi } from '@/types'
 import { useDataStore } from '@/store/useDataStore'
+import { useSessionStore } from '@/store/useSessionStore'
 import { useToast } from '@/store/useToast'
-import { rupiah, tanggalJam } from '@/lib/format'
+import { rupiah, tanggalJam, getShiftNomor } from '@/lib/format'
+import { cetakStruk } from '@/lib/print'
 import { Badge, Button, Card, DataTable, FR, Input, Label, Modal, PageHeader, Select, Textarea } from '@/components/ui'
+
+const renderShiftBadge = (nomor: number) => {
+  const configs: Record<number, { bg: string; label: string }> = {
+    1: { bg: 'bg-emerald-100 border-emerald-300 text-emerald-800', label: 'Shift 1' },
+    2: { bg: 'bg-amber-100 border-amber-300 text-amber-800', label: 'Shift 2' },
+    3: { bg: 'bg-purple-100 border-purple-300 text-purple-800', label: 'Shift 3' },
+    4: { bg: 'bg-cyan-100 border-cyan-300 text-cyan-800', label: 'Shift 4' },
+  }
+  const c = configs[nomor] || configs[1]
+  return (
+    <span className={`inline-flex items-center gap-1 border px-2 py-0.5 text-xs font-bold ${c.bg}`}>
+      <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
+      {c.label}
+    </span>
+  )
+}
 
 export function TransaksiAdmin() {
   const { transaksi, users, shifts, voidTransaksi } = useDataStore()
+  const currentUser = useSessionStore((s) => s.currentUser)
+  const isOwner = currentUser?.role === 'owner'
   const push = useToast((s) => s.push)
 
   const [cari, setCari] = useState('')
-  const [filterKasir, setFilterKasir] = useState('')
+  const [filterShift, setFilterShift] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [dari, setDari] = useState('')
   const [sampai, setSampai] = useState('')
@@ -25,18 +45,23 @@ export function TransaksiAdmin() {
     const s = shifts.find((x) => x.id === id)
     return s ? tanggalJam(s.waktuBuka) : '-'
   }
+  const getShiftNoForTrx = (shiftId: string): 1 | 2 | 3 | 4 => {
+    const s = shifts.find((x) => x.id === shiftId)
+    return getShiftNomor(s ?? (shiftId ? { id: shiftId } : null))
+  }
 
   const rows = useMemo(() => {
     const q = cari.toLowerCase()
     return transaksi.filter((t) => {
       const cocokCari = !q || t.nomor.toLowerCase().includes(q)
-      const cocokKasir = !filterKasir || t.kasirId === filterKasir
+      const shiftNo = getShiftNoForTrx(t.shiftId)
+      const cocokShift = !filterShift || String(shiftNo) === filterShift
       const cocokStatus = !filterStatus || t.status === filterStatus
       const cocokDari = !dari || t.waktu >= new Date(dari).toISOString()
       const cocokSampai = !sampai || t.waktu <= new Date(sampai + 'T23:59:59').toISOString()
-      return cocokCari && cocokKasir && cocokStatus && cocokDari && cocokSampai
+      return cocokCari && cocokShift && cocokStatus && cocokDari && cocokSampai
     })
-  }, [transaksi, cari, filterKasir, filterStatus, dari, sampai])
+  }, [transaksi, cari, filterShift, filterStatus, dari, sampai, shifts])
 
   const bukaVoid = (t: Transaksi) => {
     setVoidTarget(t)
@@ -74,9 +99,12 @@ export function TransaksiAdmin() {
       <Card className="mb-4">
         <div className="grid gap-3 md:grid-cols-5">
           <Input placeholder="Cari nomor..." value={cari} onChange={(e) => setCari(e.target.value)} />
-          <Select value={filterKasir} onChange={(e) => setFilterKasir(e.target.value)}>
-            <option value="">Semua kasir</option>
-            {users.map((u) => <option key={u.id} value={u.id}>{u.nama}</option>)}
+          <Select value={filterShift} onChange={(e) => setFilterShift(e.target.value)}>
+            <option value="">Semua Shift</option>
+            <option value="1">Shift 1 (Pagi)</option>
+            <option value="2">Shift 2 (Siang)</option>
+            <option value="3">Shift 3 (Sore)</option>
+            <option value="4">Shift 4 (Malam)</option>
           </Select>
           <Select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
             <option value="">Semua status</option>
@@ -101,12 +129,18 @@ export function TransaksiAdmin() {
                 <p className="text-[11px] text-slate-400">{tanggalJam(t.waktu)}</p>
               </div>
             ) },
-            { key: 'kasir', header: 'Kasir', render: (t) => (
-              <div>
-                <p className="text-slate-700">{namaKasir(t.kasirId)}</p>
-                <p className="text-[11px] text-slate-400">{shiftLabel(t.shiftId)}</p>
-              </div>
-            ) },
+            { key: 'kasir', header: 'Kasir & Shift', render: (t) => {
+              const shiftNo = getShiftNoForTrx(t.shiftId)
+              return (
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-medium text-slate-700">{namaKasir(t.kasirId)}</span>
+                    {renderShiftBadge(shiftNo)}
+                  </div>
+                  <p className="text-[11px] text-slate-400">{shiftLabel(t.shiftId)}</p>
+                </div>
+              )
+            } },
             { key: 'items', header: 'Item', align: 'right', render: (t) => t.detail.reduce((a, d) => a + d.qty, 0) },
             { key: 'metode', header: 'Bayar', render: (t) => <span className="text-xs capitalize">{t.metode}</span> },
             { key: 'hpp', header: 'HPP', align: 'right', render: (t) => <span className="text-xs text-slate-500">{rupiah(t.hpp)}</span> },
@@ -115,7 +149,9 @@ export function TransaksiAdmin() {
             { key: 'aksi', header: '', align: 'right', render: (t) => (
               <div className="flex justify-end gap-1">
                 <Button size="sm" variant="ghost" onClick={() => setDetail(t)}>Detail</Button>
-                <Button size="sm" variant="ghost" className="text-rose-600" disabled={t.status === 'void'} onClick={() => bukaVoid(t)}>Void</Button>
+                {!isOwner && (
+                  <Button size="sm" variant="ghost" className="text-rose-600" disabled={t.status === 'void'} onClick={() => bukaVoid(t)}>Void</Button>
+                )}
               </div>
             ) },
           ]}
@@ -123,13 +159,68 @@ export function TransaksiAdmin() {
       </Card>
 
       {/* Detail transaksi */}
-      <Modal open={!!detail} onClose={() => setDetail(null)} title="Detail Transaksi" lebar="max-w-2xl">
+      {/* Detail transaksi */}
+      <Modal
+        open={!!detail}
+        onClose={() => setDetail(null)}
+        title="Detail Transaksi"
+        lebar="max-w-2xl"
+        footer={
+          detail ? (
+            <div className="flex w-full items-center justify-between">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  const subtotalKotor = detail.detail.reduce((a, d) => a + d.qty * d.hargaSatuan, 0)
+                  const totalDiskonItem = detail.detail.reduce((a, d) => a + (d.diskonItem || 0), 0)
+                  const diskonNota = detail.diskonNominal || 0
+                  cetakStruk({
+                    namaToko: 'TOKO PASAR JAYA',
+                    alamat: 'Pasar Induk Blok A No. 12, Jakarta',
+                    nomor: detail.nomor,
+                    waktu: tanggalJam(detail.waktu),
+                    kasir: namaKasir(detail.kasirId),
+                    items: detail.detail.map((d) => ({
+                      nama: d.namaProduk,
+                      qty: d.qty,
+                      harga: d.hargaSatuan,
+                      diskonItem: d.diskonItem,
+                      subtotal: d.subtotal,
+                    })),
+                    subtotal: subtotalKotor,
+                    diskonItem: totalDiskonItem,
+                    diskonNota,
+                    diskon: totalDiskonItem + diskonNota,
+                    total: detail.total,
+                    metode: detail.metode.toUpperCase(),
+                    dibayar: detail.dibayar,
+                    kembalian: detail.kembalian,
+                  })
+                }}
+              >
+                Cetak Struk Thermal
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => setDetail(null)}>
+                Tutup
+              </Button>
+            </div>
+          ) : undefined
+        }
+      >
         {detail && (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div><p className="text-xs text-slate-400">Nomor</p><p className="font-mono">{detail.nomor}</p></div>
               <div><p className="text-xs text-slate-400">Waktu</p><p>{tanggalJam(detail.waktu)}</p></div>
               <div><p className="text-xs text-slate-400">Kasir</p><p>{namaKasir(detail.kasirId)}</p></div>
+              <div>
+                <p className="text-xs text-slate-400">Shift</p>
+                <div className="mt-0.5 flex items-center gap-1.5">
+                  {renderShiftBadge(getShiftNoForTrx(detail.shiftId))}
+                  <span className="text-xs text-slate-500">({shiftLabel(detail.shiftId)})</span>
+                </div>
+              </div>
               <div><p className="text-xs text-slate-400">Metode</p><p className="capitalize">{detail.metode}</p></div>
             </div>
             {detail.status === 'void' && (
@@ -144,7 +235,7 @@ export function TransaksiAdmin() {
                     <th className="px-3 py-2 text-left">Produk</th>
                     <th className="px-3 py-2 text-right">Harga</th>
                     <th className="px-3 py-2 text-right">Qty</th>
-                    <th className="px-3 py-2 text-right">Disc</th>
+                    <th className="px-3 py-2 text-right">Potongan</th>
                     <th className="px-3 py-2 text-right">Subtotal</th>
                   </tr>
                 </thead>
@@ -154,20 +245,31 @@ export function TransaksiAdmin() {
                       <td className="px-3 py-2">{d.namaProduk}<span className="ml-2 font-mono text-[10px] text-slate-400">{d.sku}</span></td>
                       <td className="px-3 py-2 text-right">{rupiah(d.hargaSatuan)}</td>
                       <td className="px-3 py-2 text-right">{d.qty}</td>
-                      <td className="px-3 py-2 text-right">{d.diskonItem}%</td>
+                      <td className="px-3 py-2 text-right">{d.diskonItem > 0 ? rupiah(d.diskonItem) : '-'}</td>
                       <td className="px-3 py-2 text-right">{rupiah(d.subtotal)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <div className="ml-auto w-64 space-y-1 text-sm">
-              <div className="flex justify-between"><span className="text-slate-500">Subtotal</span><span>{rupiah(detail.subtotal)}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Diskon nota</span><span>-{rupiah(detail.diskonNominal)}</span></div>
-              <div className="flex justify-between border-t border-slate-200 pt-1 font-bold"><span>Total</span><span>{rupiah(detail.total)}</span></div>
-              <div className="flex justify-between text-xs text-slate-400"><span>HPP</span><span>{rupiah(detail.hpp)}</span></div>
-              <div className="flex justify-between text-xs text-emerald-600"><span>Laba kotor</span><span>{rupiah(detail.total - detail.hpp)}</span></div>
-            </div>
+            {(() => {
+              const subtotalKotor = detail.detail.reduce((a, d) => a + d.qty * d.hargaSatuan, 0)
+              const totalDiskonItem = detail.detail.reduce((a, d) => a + (d.diskonItem || 0), 0)
+              return (
+                <div className="ml-auto w-64 space-y-1 text-sm">
+                  <div className="flex justify-between"><span className="text-slate-500">Subtotal</span><span>{rupiah(subtotalKotor)}</span></div>
+                  {totalDiskonItem > 0 && (
+                    <div className="flex justify-between text-rose-500"><span>Diskon item</span><span>-{rupiah(totalDiskonItem)}</span></div>
+                  )}
+                  {detail.diskonNominal > 0 && (
+                    <div className="flex justify-between text-rose-500"><span>Diskon nota</span><span>-{rupiah(detail.diskonNominal)}</span></div>
+                  )}
+                  <div className="flex justify-between border-t border-slate-200 pt-1 font-bold"><span>Total</span><span>{rupiah(detail.total)}</span></div>
+                  <div className="flex justify-between text-xs text-slate-400"><span>HPP</span><span>{rupiah(detail.hpp)}</span></div>
+                  <div className="flex justify-between text-xs text-emerald-600"><span>Laba kotor</span><span>{rupiah(detail.total - detail.hpp)}</span></div>
+                </div>
+              )
+            })()}
           </div>
         )}
       </Modal>

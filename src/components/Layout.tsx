@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { useSessionStore } from '@/store/useSessionStore'
 import { Topbar, SyncFooter } from './Topbar'
 
 const ICONS: Record<string, string> = {
@@ -100,7 +101,7 @@ export function AdminLayout() {
   const judul = loc.pathname === '/admin' ? 'Dashboard' : aktif?.label ?? 'Admin'
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-dvh overflow-hidden">
       {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-40 w-60 shrink-0 overflow-y-auto border-r border-slate-800 bg-slate-900 transition-transform lg:static lg:translate-x-0 ${
@@ -181,45 +182,173 @@ export function KasirLayout() {
   const aktif = [...KASIR_NAV].sort((a, b) => b.to.length - a.to.length).find((i) =>
     loc.pathname === i.to || loc.pathname.startsWith(i.to + '/'),
   )
+  const isPos = loc.pathname === '/kasir'
 
   return (
-    <div className="flex h-screen items-center justify-center bg-slate-800 p-2 sm:p-4">
-      <div className="flex h-full w-full max-w-[1400px] flex-col overflow-hidden rounded-2xl border-4 border-slate-700 bg-slate-100 shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-200 bg-white px-3 py-2">
-          <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-xs font-bold text-white">
-              POS
+    <div className="flex h-dvh w-full flex-col overflow-hidden bg-slate-100">
+      <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-3 py-2 sm:px-4">
+        <div className="flex items-center gap-2">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-xs font-bold text-white">
+            POS
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-slate-800">Toko Pasar Jaya</p>
+            <p className="text-[10px] text-slate-400">Aplikasi Kasir</p>
+          </div>
+        </div>
+        <nav className="flex gap-1">
+          {KASIR_NAV.map((n) => (
+            <NavLink
+              key={n.to}
+              to={n.to}
+              end={n.to === '/kasir'}
+              className={({ isActive }) =>
+                `flex flex-col items-center rounded-lg px-3 py-1 text-[11px] font-medium transition sm:px-4 sm:py-1.5 ${
+                  isActive ? 'bg-emerald-600 text-white' : 'text-slate-500 hover:bg-slate-100'
+                }`
+              }
+            >
+              <Icon name={n.icon} size={16} />
+              {n.label}
+            </NavLink>
+          ))}
+        </nav>
+        <span className="hidden text-[11px] font-medium text-slate-400 md:block">{aktif?.label ?? 'Kasir'}</span>
+      </div>
+      <Topbar judul={aktif?.label ?? 'Kasir'} />
+      <main className={`flex-1 ${isPos ? 'overflow-hidden' : 'overflow-y-auto p-4 lg:p-6'}`}>
+        <Outlet />
+      </main>
+      <SyncFooter />
+    </div>
+  )
+}
+
+const OWNER_NAV: NavItem[] = [
+  { to: '/owner', label: 'Dashboard', icon: 'dashboard' },
+  { to: '/owner/laporan', label: 'Laporan Penjualan', icon: 'report' },
+  { to: '/owner/laba-rugi', label: 'Laba Rugi', icon: 'chart' },
+  { to: '/owner/transaksi', label: 'Transaksi', icon: 'receipt' },
+  { to: '/owner/produk', label: 'Stok Produk', icon: 'box' },
+  { to: '/owner/pengeluaran', label: 'Pengeluaran', icon: 'wallet' },
+]
+
+export function OwnerLayout() {
+  const [bukaMobile, setBukaMobile] = useState(false)
+  const loc = useLocation()
+  const navigate = useNavigate()
+  const { currentUser, logout, lastSyncAt } = useSessionStore()
+
+  const aktif = [...OWNER_NAV].sort((a, b) => b.to.length - a.to.length).find((i) =>
+    loc.pathname === i.to || (i.to !== '/owner' && loc.pathname.startsWith(i.to + '/')),
+  )
+  const judul = aktif?.label ?? 'Dashboard Owner'
+
+  return (
+    <div className="flex min-h-screen w-full flex-col bg-slate-100">
+      {/* Top Navbar Sticky */}
+      <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-900 text-white shadow-md">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-2.5">
+          {/* Logo Brand */}
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-sm font-bold text-white shadow-xs">
+              iPOS
             </span>
-            <div className="hidden sm:block">
-              <p className="text-sm font-semibold text-slate-800">Toko Pasar Jaya</p>
-              <p className="text-[10px] text-slate-400">Aplikasi Kasir &middot; Tablet Android (simulasi)</p>
+            <div>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-bold text-white">Toko Pasar Jaya</p>
+                <span className="rounded bg-brand-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-brand-300 border border-brand-500/30">
+                  OWNER
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Pantauan Kinerja Toko &middot; <span className="text-slate-300 font-medium">{judul}</span>
+              </p>
             </div>
           </div>
-          <nav className="flex gap-1">
-            {KASIR_NAV.map((n) => (
+
+          {/* Desktop Navigation Links */}
+          <nav className="hidden md:flex items-center gap-1">
+            {OWNER_NAV.map((n) => (
               <NavLink
                 key={n.to}
                 to={n.to}
-                end={n.to === '/kasir'}
+                end={n.to === '/owner'}
                 className={({ isActive }) =>
-                  `flex flex-col items-center rounded-lg px-4 py-1.5 text-[11px] font-medium transition ${
-                    isActive ? 'bg-emerald-600 text-white' : 'text-slate-500 hover:bg-slate-100'
+                  `flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                    isActive
+                      ? 'bg-brand-600 text-white shadow-xs'
+                      : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                   }`
                 }
               >
-                <Icon name={n.icon} size={16} />
+                <Icon name={n.icon} size={15} />
                 {n.label}
               </NavLink>
             ))}
           </nav>
-          <span className="hidden text-[11px] font-medium text-slate-400 md:block">{aktif?.label ?? 'Kasir'}</span>
+
+          {/* User Info & Actions */}
+          <div className="flex items-center gap-3">
+            <div className="hidden text-right lg:block">
+              <p className="text-xs font-semibold text-white">{currentUser?.nama}</p>
+              <p className="text-[10px] text-slate-400">
+                {lastSyncAt ? `Sinkron ${new Date(lastSyncAt).toLocaleTimeString('id-ID')}` : 'Online'}
+              </p>
+            </div>
+            <button
+              onClick={() => { logout(); navigate('/login') }}
+              className="rounded-md border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs font-medium text-slate-200 hover:bg-slate-700 hover:text-white transition"
+            >
+              Keluar
+            </button>
+            {/* Mobile hamburger */}
+            <button
+              onClick={() => setBukaMobile(!bukaMobile)}
+              className="rounded-lg p-1.5 text-slate-300 hover:bg-slate-800 md:hidden"
+              aria-label="Buka navigasi"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 6h18M3 12h18M3 18h18" />
+              </svg>
+            </button>
+          </div>
         </div>
-        <Topbar judul={aktif?.label ?? 'Kasir'} />
-        <main className="flex-1 overflow-hidden">
-          <Outlet />
-        </main>
-        <SyncFooter />
-      </div>
+
+        {/* Mobile Dropdown Menu */}
+        {bukaMobile && (
+          <div className="border-t border-slate-800 bg-slate-900 px-4 py-2 md:hidden">
+            <nav className="flex flex-col gap-1">
+              {OWNER_NAV.map((n) => (
+                <NavLink
+                  key={n.to}
+                  to={n.to}
+                  end={n.to === '/owner'}
+                  onClick={() => setBukaMobile(false)}
+                  className={({ isActive }) =>
+                    `flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition ${
+                      isActive
+                        ? 'bg-brand-600 text-white'
+                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                    }`
+                  }
+                >
+                  <Icon name={n.icon} size={16} />
+                  {n.label}
+                </NavLink>
+              ))}
+            </nav>
+          </div>
+        )}
+      </header>
+
+      {/* Main Content */}
+      <main className="flex-1">
+        <Outlet />
+      </main>
+
+      <SyncFooter />
     </div>
   )
 }
+

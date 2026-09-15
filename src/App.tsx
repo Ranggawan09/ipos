@@ -1,5 +1,5 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { AdminLayout, KasirLayout } from '@/components/Layout'
+import { AdminLayout, KasirLayout, OwnerLayout } from '@/components/Layout'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { ToastHost } from '@/components/ToastHost'
 import { Login } from '@/pages/Login'
@@ -84,15 +84,22 @@ export default function App() {
           <Route path="shift" element={<ShiftPage />} />
         </Route>
 
-        {/* Dashboard Owner (read-only) */}
+        {/* Panel Owner (read-only) */}
         <Route
           path="/owner"
           element={
             <ProtectedRoute roles={['owner']}>
-              <DashboardOwner />
+              <OwnerLayout />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route index element={<DashboardOwner />} />
+          <Route path="laporan" element={<LaporanPenjualan />} />
+          <Route path="laba-rugi" element={<LabaRugi />} />
+          <Route path="transaksi" element={<TransaksiAdmin />} />
+          <Route path="produk" element={<Produk />} />
+          <Route path="pengeluaran" element={<Pengeluaran />} />
+        </Route>
 
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
