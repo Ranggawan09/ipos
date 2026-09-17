@@ -11,8 +11,6 @@ const renderShiftBadge = (nomor: number) => {
   const configs: Record<number, { bg: string; label: string }> = {
     1: { bg: 'bg-emerald-100 border-emerald-300 text-emerald-800', label: 'Shift 1' },
     2: { bg: 'bg-amber-100 border-amber-300 text-amber-800', label: 'Shift 2' },
-    3: { bg: 'bg-purple-100 border-purple-300 text-purple-800', label: 'Shift 3' },
-    4: { bg: 'bg-cyan-100 border-cyan-300 text-cyan-800', label: 'Shift 4' },
   }
   const c = configs[nomor] || configs[1]
   return (
@@ -45,7 +43,7 @@ export function TransaksiAdmin() {
     const s = shifts.find((x) => x.id === id)
     return s ? tanggalJam(s.waktuBuka) : '-'
   }
-  const getShiftNoForTrx = (shiftId: string): 1 | 2 | 3 | 4 => {
+  const getShiftNoForTrx = (shiftId: string): 1 | 2 => {
     const s = shifts.find((x) => x.id === shiftId)
     return getShiftNomor(s ?? (shiftId ? { id: shiftId } : null))
   }
@@ -82,7 +80,7 @@ export function TransaksiAdmin() {
       return
     }
     voidTransaksi(voidTarget.id, admin.id, alasan)
-    push({ tipe: 'sukses', judul: 'Transaksi dibatalkan', pesan: `${voidTarget.nomor} — stok dikembalikan` })
+    push({ tipe: 'sukses', judul: 'Transaksi dibatalkan', pesan: `${voidTarget.nomor}: stok dikembalikan` })
     setVoidTarget(null)
   }
 
@@ -100,11 +98,9 @@ export function TransaksiAdmin() {
         <div className="grid gap-3 md:grid-cols-5">
           <Input placeholder="Cari nomor..." value={cari} onChange={(e) => setCari(e.target.value)} />
           <Select value={filterShift} onChange={(e) => setFilterShift(e.target.value)}>
-            <option value="">Semua Shift</option>
+            <option value="">Semua Shift (1–2)</option>
             <option value="1">Shift 1 (Pagi)</option>
-            <option value="2">Shift 2 (Siang)</option>
-            <option value="3">Shift 3 (Sore)</option>
-            <option value="4">Shift 4 (Malam)</option>
+            <option value="2">Shift 2 (Siang / Malam)</option>
           </Select>
           <Select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
             <option value="">Semua status</option>
@@ -115,7 +111,7 @@ export function TransaksiAdmin() {
           <Input type="date" value={sampai} onChange={(e) => setSampai(e.target.value)} />
         </div>
         <p className="mt-3 text-xs text-slate-500">
-          {rows.length} transaksi &middot; nilai transaksi selesai <span className="font-semibold text-slate-700">{rupiah(totalSelesai)}</span>
+          {rows.length} transaksi | Nilai transaksi selesai: <span className="font-semibold text-slate-700">{rupiah(totalSelesai)}</span>
         </p>
       </Card>
 
@@ -225,7 +221,7 @@ export function TransaksiAdmin() {
             </div>
             {detail.status === 'void' && (
               <div className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">
-                Dibatalkan oleh {namaKasir(detail.voidBy ?? '')} — {detail.voidAlasan}
+                Dibatalkan oleh {namaKasir(detail.voidBy ?? '')}: {detail.voidAlasan}
               </div>
             )}
             <div className="overflow-hidden rounded-lg border border-slate-200">
@@ -303,7 +299,7 @@ export function TransaksiAdmin() {
             <Label>Alasan pembatalan</Label>
             <Textarea rows={2} value={alasan} onChange={(e) => setAlasan(e.target.value)} placeholder="Contoh: salah input produk / pembeli batal" />
           </div>
-          <p className="text-[11px] text-slate-400">Untuk demo, PIN admin default adalah 1234.</p>
+          <p className="text-[11px] text-slate-400">PIN otorisasi administrator diperlukan untuk menyetujui pembatalan transaksi.</p>
         </div>
       </Modal>
     </>

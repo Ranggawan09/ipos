@@ -170,6 +170,17 @@ const TEMPLATE: Record<string, [string, string, number][]> = {
   ],
 }
 
+const KAT_SUPPLIER_MAP: Record<string, string> = {
+  'KAT-01': 'SUP-01', // Sembako & Curah -> CV Sumber Rejeki
+  'KAT-02': 'SUP-02', // Makanan Ringan -> PT Anugerah Pangan
+  'KAT-03': 'SUP-03', // Minuman -> UD Makmur Jaya
+  'KAT-04': 'SUP-04', // Bumbu Dapur -> PT Sejahtera Abadi
+  'KAT-05': 'SUP-05', // Perlengkapan Mandi -> UD Barokah
+  'KAT-06': 'SUP-06', // Rumah Tangga -> PT Nusantara Distribusi
+  'KAT-07': 'SUP-01', // Rokok -> CV Sumber Rejeki
+  'KAT-08': 'SUP-03', // ATK -> UD Makmur Jaya
+}
+
 export function buildProduk(): Produk[] {
   const list: Produk[] = []
   let n = 1
@@ -177,16 +188,39 @@ export function buildProduk(): Produk[] {
     TEMPLATE[kat.id].forEach(([nama, satuan, hargaBeli]) => {
       const margin = 1.12 + rnd() * 0.25
       const hargaJual = Math.round((hargaBeli * margin) / 100) * 100
-      const stokMin = kat.id === 'KAT-07' ? 20 : int(5, 20)
-      let stok = int(0, 120)
-      // buat sebagian produk berada di bawah stok minimum agar notifikasi terlihat
-      if (rnd() < 0.18) stok = int(0, stokMin)
+      const stokMin = kat.id === 'KAT-07' ? 20 : int(5, 15)
+      let stok = int(10, 120)
+
+      // Pemetaan supplier: Contoh khusus sesuai kebutuhan toko
+      // Supplier B (PT Anugerah Pangan): Beras, Minyak
+      // Supplier A (CV Sumber Rejeki): Gula, Susu, Tepung
+      let supplierId = KAT_SUPPLIER_MAP[kat.id] || 'SUP-01'
+      const namaLower = nama.toLowerCase()
+      if (namaLower.includes('beras') || namaLower.includes('minyak')) {
+        supplierId = 'SUP-02' // PT Anugerah Pangan
+      } else if (namaLower.includes('gula') || namaLower.includes('tepung') || namaLower.includes('susu')) {
+        supplierId = 'SUP-01' // CV Sumber Rejeki
+      }
+
+      // Buat beberapa produk sembako kunci berada dalam kondisi stok menipis (kritis)
+      if (
+        nama === 'Gula Pasir 1kg' ||
+        nama === 'Tepung Terigu 1kg' ||
+        nama === 'Beras Premium 5kg' ||
+        nama === 'Minyak Goreng 2L'
+      ) {
+        stok = int(1, 3) // pasti di bawah stokMin (misal stok = 2, min = 10)
+      } else if (rnd() < 0.12) {
+        stok = int(0, stokMin)
+      }
+
       list.push({
         id: `PRD-${String(n).padStart(4, '0')}`,
         sku: `SKU${String(n).padStart(4, '0')}`,
         barcode: `899${String(1000000 + n).slice(-7)}`,
         nama,
         kategoriId: kat.id,
+        supplierId,
         satuan,
         hargaBeli,
         hargaJual,
@@ -307,7 +341,7 @@ export function buildShiftDanTransaksi(produk: Produk[]) {
       shifts.push({
         id: shiftId,
         kasirId,
-        shiftNomor: (((shiftNo - 1) % 4) + 1) as 1 | 2 | 3 | 4,
+        shiftNomor: (((shiftNo - 1) % 2) + 1) as 1 | 2,
         waktuBuka,
         waktuTutup,
         saldoAwal,
@@ -395,7 +429,7 @@ export function buildPenerimaan(produk: Produk[]): PenerimaanBarang[] {
 
 // ---- Repack seed ---------------------------------------------------------
 
-// Mapping nama produk curah → config repack
+// Mapping nama produk curah ke config repack
 const REPACK_MAP: {
   curah: string
   beratPerUnit: number

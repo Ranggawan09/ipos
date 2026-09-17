@@ -25,8 +25,6 @@ type KategoriShiftRow = {
   kategoriNama: string
   shift1: number
   shift2: number
-  shift3: number
-  shift4: number
   totalOmzet: number
 }
 
@@ -42,8 +40,6 @@ const renderShiftBadge = (nomor: number) => {
   const configs: Record<number, { bg: string; label: string }> = {
     1: { bg: 'bg-emerald-100 border-emerald-300 text-emerald-800', label: 'Shift 1' },
     2: { bg: 'bg-amber-100 border-amber-300 text-amber-800', label: 'Shift 2' },
-    3: { bg: 'bg-purple-100 border-purple-300 text-purple-800', label: 'Shift 3' },
-    4: { bg: 'bg-cyan-100 border-cyan-300 text-cyan-800', label: 'Shift 4' },
   }
   const c = configs[nomor] || configs[1]
   return (
@@ -121,7 +117,7 @@ export function LaporanPenjualan() {
 
       if (periode === 'per_shift') {
         key = `SHIFT-${shiftNomor}`
-        label = `Shift ${shiftNomor} (${shiftNomor === 1 ? 'Pagi' : shiftNomor === 2 ? 'Siang' : shiftNomor === 3 ? 'Sore' : 'Malam'})`
+        label = `Shift ${shiftNomor} (${shiftNomor === 1 ? 'Pagi' : 'Siang / Malam'})`
         rowShiftNomor = shiftNomor
       } else if (periode === 'harian') {
         key = d.toISOString().slice(0, 10)
@@ -152,13 +148,13 @@ export function LaporanPenjualan() {
     })
 
     if (periode === 'per_shift') {
-      return ([1, 2, 3, 4] as const)
+      return ([1, 2] as const)
         .map((sNo) => {
           const key = `SHIFT-${sNo}`
           return (
             map.get(key) ?? {
               id: key,
-              label: `Shift ${sNo} (${sNo === 1 ? 'Pagi' : sNo === 2 ? 'Siang' : sNo === 3 ? 'Sore' : 'Malam'})`,
+              label: `Shift ${sNo} (${sNo === 1 ? 'Pagi' : 'Siang / Malam'})`,
               shiftNomor: sNo,
               transaksi: 0,
               omzet: 0,
@@ -173,7 +169,7 @@ export function LaporanPenjualan() {
     return [...map.values()].sort((a, b) => (a.id < b.id ? 1 : -1))
   }, [transaksi, periode, filterShift, filterKategori, shiftMap, produkKategoriMap])
 
-  // Matriks Kategori vs Shift 1, 2, 3, 4
+  // Matriks Kategori vs Shift 1, 2
   const matriksKategoriShift: KategoriShiftRow[] = useMemo(() => {
     const selesai = hanyaSelesai(transaksi)
     const katMap = new Map<string, KategoriShiftRow>()
@@ -185,8 +181,6 @@ export function LaporanPenjualan() {
         kategoriNama: k.nama,
         shift1: 0,
         shift2: 0,
-        shift3: 0,
-        shift4: 0,
         totalOmzet: 0,
       })
     })
@@ -198,9 +192,7 @@ export function LaporanPenjualan() {
         if (kId && katMap.has(kId)) {
           const row = katMap.get(kId)!
           if (sNo === 1) row.shift1 += d.subtotal
-          else if (sNo === 2) row.shift2 += d.subtotal
-          else if (sNo === 3) row.shift3 += d.subtotal
-          else if (sNo === 4) row.shift4 += d.subtotal
+          else row.shift2 += d.subtotal
           row.totalOmzet += d.subtotal
         }
       })
@@ -253,7 +245,7 @@ export function LaporanPenjualan() {
     <>
       <PageHeader
         judul="Laporan Penjualan"
-        deskripsi="Laporan penjualan per shift (1, 2, 3, 4), harian, mingguan, dan bulanan terintegrasi otomatis dengan modul POS."
+        deskripsi="Laporan penjualan per shift (1, 2), harian, mingguan, dan bulanan terintegrasi otomatis dengan modul POS."
         aksi={
           <>
             <FR kode="FR-FIN-01" />
@@ -263,7 +255,7 @@ export function LaporanPenjualan() {
         }
       />
 
-      {/* Baris Filter Terpadu: Shift 1-4, Kategori, Periode */}
+      {/* Baris Filter Terpadu: Shift 1-2, Kategori, Periode */}
       <div className="mb-4 border border-slate-200 bg-white p-3 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3">
@@ -272,21 +264,19 @@ export function LaporanPenjualan() {
               <label className="text-xs font-semibold text-slate-600">Grup Periode:</label>
               <Select value={periode} onChange={(e) => setPeriode(e.target.value as Periode)} className="w-40 text-xs">
                 <option value="harian">Harian</option>
-                <option value="per_shift">Per Shift (1–4)</option>
+                <option value="per_shift">Per Shift (1–2)</option>
                 <option value="mingguan">Mingguan</option>
                 <option value="bulanan">Bulanan</option>
               </Select>
             </div>
 
-            {/* Filter Shift 1, 2, 3, 4 */}
+            {/* Filter Shift 1, 2 */}
             <div className="flex items-center gap-1.5">
               <label className="text-xs font-semibold text-slate-600">Filter Shift:</label>
               <Select value={filterShift} onChange={(e) => setFilterShift(e.target.value)} className="w-36 text-xs">
-                <option value="semua">Semua Shift</option>
+                <option value="semua">Semua Shift (1–2)</option>
                 <option value="1">Shift 1 (Pagi)</option>
-                <option value="2">Shift 2 (Siang)</option>
-                <option value="3">Shift 3 (Sore)</option>
-                <option value="4">Shift 4 (Malam)</option>
+                <option value="2">Shift 2 (Siang / Malam)</option>
               </Select>
             </div>
 
@@ -323,7 +313,7 @@ export function LaporanPenjualan() {
                   tabView === 'matriks_kategori' ? 'bg-brand-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
                 }`}
               >
-                Kategori per Shift (1–4)
+                Kategori per Shift (1–2)
               </button>
             </div>
             <Button size="sm" variant="secondary" onClick={unduhCSV}>
@@ -339,7 +329,7 @@ export function LaporanPenjualan() {
         <div className="mt-2.5 flex items-center gap-2 border-t border-slate-100 pt-2 text-xs text-slate-500">
           <span>Filter Aktif:</span>
           <span className="font-semibold text-slate-700">{shiftTerpilihText}</span>
-          <span>&middot;</span>
+          <span>/</span>
           <span className="font-semibold text-slate-700">{namaKatTerpilih}</span>
           {filterShift !== 'semua' && renderShiftBadge(Number(filterShift))}
         </div>
@@ -355,7 +345,7 @@ export function LaporanPenjualan() {
       {tabView === 'rekap' ? (
         <Card
           title={periode === 'per_shift' ? 'Laporan Penjualan Per Shift' : 'Rekapitulasi Penjualan'}
-          subtitle={`Filter: ${shiftTerpilihText} · ${namaKatTerpilih}`}
+          subtitle={`Filter: ${shiftTerpilihText} / ${namaKatTerpilih}`}
         >
           <DataTable
             data={rows}
@@ -395,7 +385,7 @@ export function LaporanPenjualan() {
         </Card>
       ) : (
         <Card
-          title="Analisis Omzet Kategori Produk per Shift (1, 2, 3, 4)"
+          title="Analisis Omzet Kategori Produk per Shift (1, 2)"
           subtitle="Distribusi penjualan tiap kategori berdasarkan shift kerja kasir"
         >
           <DataTable
@@ -414,21 +404,9 @@ export function LaporanPenjualan() {
               },
               {
                 key: 'shift2',
-                header: 'Shift 2 (Siang)',
+                header: 'Shift 2 (Siang / Malam)',
                 align: 'right',
                 render: (k) => <span className="text-slate-700 font-medium">{rupiah(k.shift2)}</span>,
-              },
-              {
-                key: 'shift3',
-                header: 'Shift 3 (Sore)',
-                align: 'right',
-                render: (k) => <span className="text-slate-700 font-medium">{rupiah(k.shift3)}</span>,
-              },
-              {
-                key: 'shift4',
-                header: 'Shift 4 (Malam)',
-                align: 'right',
-                render: (k) => <span className="text-slate-700 font-medium">{rupiah(k.shift4)}</span>,
               },
               {
                 key: 'totalOmzet',

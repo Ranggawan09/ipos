@@ -9,8 +9,6 @@ const renderShiftBadge = (nomor: number) => {
   const configs: Record<number, { bg: string; label: string }> = {
     1: { bg: 'bg-emerald-100 border-emerald-300 text-emerald-800', label: 'Shift 1' },
     2: { bg: 'bg-amber-100 border-amber-300 text-amber-800', label: 'Shift 2' },
-    3: { bg: 'bg-purple-100 border-purple-300 text-purple-800', label: 'Shift 3' },
-    4: { bg: 'bg-cyan-100 border-cyan-300 text-cyan-800', label: 'Shift 4' },
   }
   const c = configs[nomor] || configs[1]
   return (
@@ -128,11 +126,9 @@ export function ShiftPage() {
                 onChange={(e) => setFilterShiftNomor(e.target.value)}
                 className="border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700"
               >
-                <option value="semua">Semua Shift (1–4)</option>
+                <option value="semua">Semua Shift (1–2)</option>
                 <option value="1">Shift 1 (Pagi)</option>
-                <option value="2">Shift 2 (Siang)</option>
-                <option value="3">Shift 3 (Sore)</option>
-                <option value="4">Shift 4 (Malam)</option>
+                <option value="2">Shift 2 (Siang / Malam)</option>
               </select>
             </div>
             <Badge warna="blue">FR-POS-08</Badge>

@@ -151,7 +151,7 @@ export function DashboardOwner() {
         </div>
 
       <p className="mt-6 text-center text-[11px] text-slate-400">
-        Demo SRS v1.0 — dashboard owner bersifat read-only dan tidak dapat mengubah data operasional.
+        Dashboard pemilik dikhususkan untuk pemantauan data performa dan laporan toko secara berkala.
       </p>
     </div>
   )

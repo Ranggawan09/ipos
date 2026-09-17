@@ -29,7 +29,7 @@ export function HutangSupplier() {
     if (!target) return
     const h = hutang.find((x) => x.id === target)
     lunasiHutang(target)
-    push({ tipe: 'sukses', judul: 'Hutang ditandai lunas', pesan: h ? `${namaSupplier(h.supplierId)} — ${h.nomorFaktur}` : undefined })
+    push({ tipe: 'sukses', judul: 'Hutang ditandai lunas', pesan: h ? `${namaSupplier(h.supplierId)} (${h.nomorFaktur})` : undefined })
     setTarget(null)
   }
 

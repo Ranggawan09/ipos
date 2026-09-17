@@ -44,6 +44,7 @@ export function Icon({ name, size = 18 }: { name: string; size?: number }) {
   )
 }
 
+
 type NavItem = { to: string; label: string; icon: string }
 type NavGroup = { judul: string; items: NavItem[] }
 
@@ -262,7 +263,7 @@ export function OwnerLayout() {
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">
-                Pantauan Kinerja Toko &middot; <span className="text-slate-300 font-medium">{judul}</span>
+                Pantauan Kinerja Toko / <span className="text-slate-300 font-medium">{judul}</span>
               </p>
             </div>
           </div>

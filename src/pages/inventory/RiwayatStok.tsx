@@ -92,7 +92,7 @@ export function RiwayatStok() {
                 {p.jumlah > 0 ? '+' : ''}{p.jumlah}
               </span>
             ) },
-            { key: 'stok', header: 'Stok', align: 'right', render: (p) => <span className="text-xs text-slate-500">{p.stokSebelum} → {p.stokSesudah}</span> },
+            { key: 'stok', header: 'Stok', align: 'right', render: (p) => <span className="text-xs text-slate-500">{p.stokSebelum} ke {p.stokSesudah}</span> },
             { key: 'keterangan', header: 'Keterangan', className: 'max-w-xs text-slate-500' },
             { key: 'user', header: 'Pengguna', render: (p) => <span className="text-xs text-slate-500">{p.userId === currentUser?.id ? 'Anda' : namaUser(p.userId)}</span> },
           ]}

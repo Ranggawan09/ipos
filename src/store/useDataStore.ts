@@ -93,7 +93,7 @@ export type DataState = {
   }) => void
 
   // POS
-  bukaShift: (kasirId: string, saldoAwal: number, shiftNomor?: 1 | 2 | 3 | 4) => Shift
+  bukaShift: (kasirId: string, saldoAwal: number, shiftNomor?: 1 | 2) => Shift
   tutupShift: (shiftId: string, saldoAkhir: number) => void
   buatTransaksi: (input: {
     shiftId: string
@@ -688,7 +688,7 @@ if (typeof window !== 'undefined') {
 
     useToast.getState().push({
       tipe: 'info',
-      judul: `⚡ Stok Berkurang (${ev.kasirNama || 'Kasir Lain'})`,
+      judul: `Stok Berkurang (${ev.kasirNama || 'Kasir Lain'})`,
       pesan: ringkasan,
     })
   })

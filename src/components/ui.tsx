@@ -139,10 +139,11 @@ export function Modal({
       <div className={`mt-12 w-full ${lebar} rounded-xl bg-white shadow-xl animate-fade-in`}>
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
           <h3 className="text-base font-semibold text-slate-800">{title}</h3>
-          <button onClick={onClose} className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-800 transition"
+          >
+            Tutup
           </button>
         </div>
         <div className="max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>
@@ -157,8 +158,6 @@ export function StatCard({
   label,
   value,
   hint,
-  tone = 'brand',
-  icon,
 }: {
   label: string
   value: React.ReactNode
@@ -166,19 +165,9 @@ export function StatCard({
   tone?: 'brand' | 'green' | 'amber' | 'rose' | 'violet'
   icon?: React.ReactNode
 }) {
-  const tones: Record<string, string> = {
-    brand: 'bg-brand-50 text-brand-600',
-    green: 'bg-emerald-50 text-emerald-600',
-    amber: 'bg-amber-50 text-amber-600',
-    rose: 'bg-rose-50 text-rose-600',
-    violet: 'bg-violet-50 text-violet-600',
-  }
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-start justify-between">
-        <p className="text-xs font-medium text-slate-500">{label}</p>
-        {icon && <span className={`rounded-lg p-1.5 ${tones[tone]}`}>{icon}</span>}
-      </div>
+      <p className="text-xs font-medium text-slate-500">{label}</p>
       <p className="mt-2 text-xl font-bold text-slate-800">{value}</p>
       {hint && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
     </div>
@@ -189,12 +178,7 @@ export function StatCard({
 export function EmptyState({ judul, pesan }: { judul: string; pesan?: string }) {
   return (
     <div className="flex flex-col items-center justify-center gap-1 py-12 text-center">
-      <div className="mb-2 rounded-full bg-slate-100 p-3 text-slate-400">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-          <path d="M3 7h18M3 12h18M3 17h18" />
-        </svg>
-      </div>
-      <p className="text-sm font-medium text-slate-600">{judul}</p>
+      <p className="text-sm font-semibold text-slate-700">{judul}</p>
       {pesan && <p className="max-w-sm text-xs text-slate-400">{pesan}</p>}
     </div>
   )
@@ -264,16 +248,9 @@ export function DataTable<T extends { id: string }>({
   )
 }
 
-// ---- Label kebutuhan fungsional ------------------------------------------
-export function FR({ kode }: { kode: string }) {
-  return (
-    <span
-      title={`Mengacu pada kebutuhan fungsional ${kode} di dokumen SRS`}
-      className="ml-2 rounded border border-brand-200 bg-brand-50 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-brand-600"
-    >
-      {kode}
-    </span>
-  )
+// ---- Label kebutuhan fungsional (dinonaktifkan untuk kebersihan antarmuka) ----
+export function FR({ kode: _kode }: { kode: string }) {
+  return null
 }
 
 export function PageHeader({

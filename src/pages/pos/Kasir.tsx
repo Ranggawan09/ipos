@@ -14,7 +14,7 @@ function BukaShift() {
   const { currentUser, setShiftId, selectedShiftNomor, setSelectedShiftNomor } = useSessionStore()
   const push = useToast((s) => s.push)
   const [saldo, setSaldo] = useState(200000)
-  const [shiftNo, setShiftNo] = useState<1 | 2 | 3 | 4>(selectedShiftNomor || 1)
+  const [shiftNo, setShiftNo] = useState<1 | 2>((selectedShiftNomor === 2 ? 2 : 1))
 
   const buka = () => {
     if (!currentUser) return
@@ -41,13 +41,13 @@ function BukaShift() {
         </div>
         <div className="mb-3">
           <Label>Pilih Shift</Label>
-          <div className="grid grid-cols-4 gap-2">
-            {([1, 2, 3, 4] as const).map((num) => (
+          <div className="grid grid-cols-2 gap-2">
+            {([1, 2] as const).map((num) => (
               <button
                 key={num}
                 type="button"
                 onClick={() => setShiftNo(num)}
-                className={`flex flex-col items-center justify-center border py-2 text-xs font-semibold transition ${
+                className={`flex flex-col items-center justify-center border py-2.5 text-xs font-semibold transition ${
                   shiftNo === num
                     ? 'border-emerald-600 bg-emerald-600 text-white shadow-xs'
                     : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
@@ -55,7 +55,7 @@ function BukaShift() {
               >
                 <span>Shift {num}</span>
                 <span className={`text-[10px] ${shiftNo === num ? 'text-emerald-100' : 'text-slate-400'}`}>
-                  {num === 1 ? 'Pagi' : num === 2 ? 'Siang' : num === 3 ? 'Sore' : 'Malam'}
+                  {num === 1 ? 'Pagi (08:00 - 15:00)' : 'Siang / Malam (15:00 - 22:00)'}
                 </span>
               </button>
             ))}
@@ -221,8 +221,14 @@ export function KasirPOS() {
   }, [])
 
   const focusBarcode = () => {
+    const isTouch = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+    if (isTouch) return
     if (!bayarOpen && !struk) setTimeout(() => barcodeRef.current?.focus(), 60)
   }
+
+  useEffect(() => {
+    focusBarcode()
+  }, [])
 
   const grid = useMemo(() => {
     const q = cari.toLowerCase()
@@ -256,8 +262,11 @@ export function KasirPOS() {
   }
 
   const klikProduk = (p: Produk) => {
+    // Tutup keyboard jika ada input yang sedang aktif dan jangan memicu fokus ke input barcode
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur()
+    }
     addToCart(p)
-    focusBarcode()
   }
 
   const bukaBayar = () => {
@@ -359,13 +368,7 @@ export function KasirPOS() {
               </span>
               <span
                 className={`inline-flex items-center px-2 py-0.5 text-xs font-bold text-white shadow-xs ${
-                  openShift.shiftNomor === 1
-                    ? 'bg-emerald-600'
-                    : openShift.shiftNomor === 2
-                      ? 'bg-amber-600'
-                      : openShift.shiftNomor === 3
-                        ? 'bg-purple-600'
-                        : 'bg-cyan-700'
+                  openShift.shiftNomor === 1 ? 'bg-emerald-600' : 'bg-amber-600'
                 }`}
               >
                 Shift {openShift.shiftNomor || 1}
@@ -374,27 +377,20 @@ export function KasirPOS() {
             <button
               type="button"
               onClick={() => setQrModalOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 shadow-xs hover:border-brand-400 hover:bg-brand-50 hover:text-brand-700 transition"
+              className="inline-flex items-center rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 shadow-xs hover:border-brand-400 hover:bg-brand-50 hover:text-brand-700 transition"
             >
-              <span>📱</span>
-              <span>Hubungkan HP (QR)</span>
+              Hubungkan HP (QR)
             </button>
           </div>
 
           <form onSubmit={handleBarcode} className="mb-2 flex gap-2">
             <div className="relative flex-1">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M3 5v14M7 5v14M11 5v14M15 5v14M19 5v14" />
-                </svg>
-              </span>
               <Input
                 ref={barcodeRef}
                 value={barcode}
                 onChange={(e) => setBarcode(e.target.value)}
-                placeholder="Pindai barcode atau ketik SKU lalu Enter..."
-                className="pl-10 text-base"
-                autoFocus
+                placeholder="Pindai barcode atau ketik SKU lalu tekan Enter..."
+                className="text-base"
               />
             </div>
           </form>
@@ -428,8 +424,8 @@ export function KasirPOS() {
                   <div className="flex items-start justify-between gap-1">
                     <p className="line-clamp-2 min-h-[34px] text-xs font-medium text-slate-700">{p.nama}</p>
                     {isRecent && (
-                      <span className="shrink-0 rounded bg-amber-500 px-1 py-0.5 text-[9px] font-bold text-white shadow-xs">
-                        ⚡ Berkurang
+                      <span className="shrink-0 rounded bg-amber-500 px-1.5 py-0.5 text-[9px] font-semibold text-white shadow-xs">
+                        Stok Berubah
                       </span>
                     )}
                   </div>
@@ -465,12 +461,9 @@ export function KasirPOS() {
               onClick={() => setMobileView('cart')}
               className="flex w-full items-center justify-between rounded-lg bg-emerald-600 px-4 py-2.5 font-semibold text-white shadow-md active:bg-emerald-700 transition"
             >
-              <span className="flex items-center gap-1.5 text-xs">
-                <span>🛒</span>
-                <span>{totalItem} Item</span>
-              </span>
+              <span className="text-xs font-semibold">{totalItem} Item</span>
               <span className="text-sm font-bold">{rupiah(total)}</span>
-              <span className="rounded bg-emerald-700 px-2 py-0.5 text-xs font-semibold">Buka Keranjang &rarr;</span>
+              <span className="rounded bg-emerald-700 px-2.5 py-1 text-xs font-semibold">Buka Keranjang</span>
             </button>
           </div>
         )}
@@ -487,12 +480,10 @@ export function KasirPOS() {
             <button
               type="button"
               onClick={() => setMobileView('catalog')}
-              className="rounded-lg border border-slate-200 bg-slate-50 p-1.5 text-slate-600 hover:bg-slate-100 md:hidden"
+              className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 md:hidden"
               title="Kembali ke katalog"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M19 12H5M12 19l-7-7 7-7" />
-              </svg>
+              Kembali
             </button>
             <div>
               <h3 className="text-sm font-bold text-slate-800">Keranjang</h3>
@@ -584,7 +575,7 @@ export function KasirPOS() {
             <span className="text-xl font-bold text-emerald-600">{rupiah(total)}</span>
           </div>
           <Button className="w-full" size="lg" variant="success" onClick={bukaBayar}>
-            Bayar {total > 0 ? `· ${rupiah(total)}` : ''}
+            Bayar {total > 0 ? `(${rupiah(total)})` : ''}
           </Button>
           <button
             onClick={() => navigate('/kasir/riwayat')}
@@ -614,7 +605,7 @@ export function KasirPOS() {
           <div className="rounded-xl bg-slate-900 p-4 text-white">
             <p className="text-xs text-slate-400">Total tagihan</p>
             <p className="text-3xl font-bold">{rupiah(total)}</p>
-            <p className="mt-1 text-xs text-slate-400">{totalItem} item &middot; {cart.length} jenis produk</p>
+            <p className="mt-1 text-xs text-slate-400">{totalItem} item | {cart.length} jenis produk</p>
             {offlineMode && (
               <p className="mt-2 inline-block rounded bg-amber-500/20 px-2 py-1 text-[11px] text-amber-300">
                 Mode offline: transaksi akan diantrekan
@@ -687,7 +678,7 @@ export function KasirPOS() {
       <Modal
         open={qrModalOpen}
         onClose={() => setQrModalOpen(false)}
-        title="📱 Hubungkan HP Kasir Lain (Multi-Device Demo)"
+        title="Hubungkan Perangkat Kasir Tambahan"
         lebar="max-w-md"
       >
         <div className="space-y-4 text-center">
@@ -709,12 +700,11 @@ export function KasirPOS() {
             </p>
           </div>
 
-          <div className="rounded-lg bg-emerald-50 p-3 text-left text-xs text-emerald-800 border border-emerald-200">
-            <p className="font-semibold">💡 Tips Demo Multi-Kasir:</p>
-            <ul className="mt-1 list-disc pl-4 space-y-1 text-[11px]">
-              <li>Buka link ini di HP Kasir 1 dan HP Kasir 2.</li>
-              <li>Lakukan transaksi checkout di HP Kasir 1.</li>
-              <li>Lihat angka stok di HP Kasir 2 langsung berkurang realtime dengan badge ⚡ Berkurang!</li>
+          <div className="rounded-lg bg-slate-50 p-3 text-left text-xs text-slate-700 border border-slate-200">
+            <p className="font-semibold text-slate-800">Panduan Sinkronisasi Multi-Kasir:</p>
+            <ul className="mt-1 list-disc pl-4 space-y-1 text-[11px] text-slate-600">
+              <li>Buka tautan ini pada perangkat kasir kedua.</li>
+              <li>Setiap transaksi yang diselesaikan langsung memperbarui sisa stok secara realtime di semua layar.</li>
             </ul>
           </div>
 

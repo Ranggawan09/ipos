@@ -142,7 +142,7 @@ export function ImportProduk() {
             <Button variant="ghost" onClick={() => { setTeks(CONTOH); setPreview(null) }}>Muat contoh</Button>
           </div>
           <p className="mt-3 text-xs text-slate-400">
-            Catatan: demo ini membaca berkas CSV. Untuk Excel (.xlsx), simpan lembar kerja sebagai CSV terlebih dahulu.
+            Format impor mendukung berkas CSV standar (koma atau titik koma). Untuk berkas Excel (.xlsx), simpan terlebih dahulu ke format CSV.
           </p>
         </Card>
 

@@ -88,7 +88,7 @@ export function BarangKeluar() {
           <div>
             <Label>Produk</Label>
             <Select value={produkId} onChange={(e) => setProdukId(e.target.value)}>
-              {produk.map((p) => <option key={p.id} value={p.id}>{p.nama} — stok {p.stok}</option>)}
+              {produk.map((p) => <option key={p.id} value={p.id}>{p.nama} (stok: {p.stok})</option>)}
             </Select>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -109,7 +109,7 @@ export function BarangKeluar() {
           </div>
           {produkTerpilih && (
             <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
-              Stok saat ini <span className="font-semibold text-slate-700">{produkTerpilih.stok}</span> &rarr; setelah keluar{' '}
+              Stok saat ini <span className="font-semibold text-slate-700">{produkTerpilih.stok}</span>, setelah keluar menjadi{' '}
               <span className="font-semibold text-slate-700">{Math.max(0, produkTerpilih.stok - jumlah)}</span>
             </p>
           )}

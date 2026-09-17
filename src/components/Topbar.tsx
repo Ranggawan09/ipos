@@ -6,6 +6,7 @@ import { stokKritis } from '@/store/selectors'
 import { useToast } from '@/store/useToast'
 import { angka, jam } from '@/lib/format'
 import { Badge } from './ui'
+import { ModalRestockSupplier } from './ModalRestockSupplier'
 
 export function Topbar({ judul }: { judul?: string }) {
   const navigate = useNavigate()
@@ -15,6 +16,7 @@ export function Topbar({ judul }: { judul?: string }) {
   const push = useToast((s) => s.push)
   const [bukaNotif, setBukaNotif] = useState(false)
   const [bukaUser, setBukaUser] = useState(false)
+  const [modalRestock, setModalRestock] = useState(false)
 
   const kritis = useMemo(() => stokKritis(produk), [produk])
   const terakhirCloud = logSinkron.find((l) => l.jenis === 'cloud')
@@ -110,9 +112,14 @@ export function Topbar({ judul }: { judul?: string }) {
           {bukaNotif && (
             <>
               <div className="fixed inset-0 z-30" onClick={() => setBukaNotif(false)} />
-              <div className="absolute right-0 top-11 z-40 w-80 rounded-xl border border-slate-200 bg-white shadow-xl">
-                <div className="border-b border-slate-100 px-4 py-2.5">
-                  <p className="text-sm font-semibold text-slate-700">Notifikasi Stok Minimum</p>
+              <div className="absolute right-0 top-11 z-40 w-88 rounded-xl border border-slate-200 bg-white shadow-xl">
+                <div className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5">
+                  <p className="text-sm font-semibold text-slate-700">Notifikasi Stok Menipis</p>
+                  {kritis.length > 0 && (
+                    <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[10px] font-semibold text-rose-600 border border-rose-200">
+                      {kritis.length} barang
+                    </span>
+                  )}
                 </div>
                 <div className="max-h-80 overflow-y-auto">
                   {kritis.length === 0 ? (
@@ -123,12 +130,12 @@ export function Topbar({ judul }: { judul?: string }) {
                         key={p.id}
                         onClick={() => {
                           setBukaNotif(false)
-                          navigate('/admin/produk')
+                          setModalRestock(true)
                         }}
-                        className="flex w-full items-start justify-between gap-2 border-b border-slate-50 px-4 py-2.5 text-left hover:bg-slate-50"
+                        className="flex w-full items-start justify-between gap-2 border-b border-slate-50 px-4 py-2.5 text-left hover:bg-amber-50/50 transition group"
                       >
                         <div className="min-w-0">
-                          <p className="truncate text-xs font-medium text-slate-700">{p.nama}</p>
+                          <p className="truncate text-xs font-medium text-slate-700 group-hover:text-amber-800">{p.nama}</p>
                           <p className="text-[11px] text-slate-400">{p.sku}</p>
                         </div>
                         <span className="shrink-0 rounded bg-rose-50 px-1.5 py-0.5 text-[11px] font-semibold text-rose-600">
@@ -138,6 +145,19 @@ export function Topbar({ judul }: { judul?: string }) {
                     ))
                   )}
                 </div>
+                {kritis.length > 0 && (
+                  <div className="border-t border-slate-100 p-2.5 bg-slate-50/80">
+                    <button
+                      onClick={() => {
+                        setBukaNotif(false)
+                        setModalRestock(true)
+                      }}
+                      className="w-full flex items-center justify-center py-2 px-3 text-xs font-semibold text-amber-900 bg-amber-100 hover:bg-amber-200 rounded-lg border border-amber-300 transition shadow-sm"
+                    >
+                      Detail Restock per Supplier & Cetak PO
+                    </button>
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -181,6 +201,11 @@ export function Topbar({ judul }: { judul?: string }) {
           )}
         </div>
       </div>
+
+      <ModalRestockSupplier
+        open={modalRestock}
+        onClose={() => setModalRestock(false)}
+      />
     </header>
   )
 }

@@ -1,4 +1,4 @@
-// Entitas data utama — mengacu pada SRS bagian 6
+// Entitas model data operasional iPOS
 
 export type Role = 'admin' | 'kasir' | 'owner'
 
@@ -31,6 +31,7 @@ export type Produk = {
   barcode: string
   nama: string
   kategoriId: string
+  supplierId?: string
   satuan: string
   hargaBeli: number
   hargaJual: number
@@ -105,7 +106,7 @@ export type Transaksi = {
 export type Shift = {
   id: string
   kasirId: string
-  shiftNomor?: 1 | 2 | 3 | 4
+  shiftNomor?: 1 | 2
   waktuBuka: string
   waktuTutup?: string
   saldoAwal: number
@@ -158,7 +159,7 @@ export type LogSinkron = {
   status: 'sukses' | 'menunggu'
 }
 
-// ---- Repack / Pengemasan Curah → Kemasan ----
+// ---- Repack / Pengemasan Curah ke Kemasan ----
 
 export type ItemResep = {
   produkKemasanId: string

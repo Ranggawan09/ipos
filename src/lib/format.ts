@@ -51,12 +51,15 @@ export const awalBulanIni = () => {
   return new Date(d.getFullYear(), d.getMonth(), 1)
 }
 
-export const getShiftNomor = (shift?: { id: string; shiftNomor?: 1 | 2 | 3 | 4 } | null): 1 | 2 | 3 | 4 => {
-  if (shift?.shiftNomor && [1, 2, 3, 4].includes(shift.shiftNomor)) {
+export const getShiftNomor = (shift?: { id: string; shiftNomor?: number } | null): 1 | 2 => {
+  if (shift?.shiftNomor === 1 || shift?.shiftNomor === 2) {
     return shift.shiftNomor
+  }
+  if (shift?.shiftNomor && shift.shiftNomor > 2) {
+    return (((shift.shiftNomor - 1) % 2) + 1) as 1 | 2
   }
   if (!shift?.id) return 1
   const num = parseInt(shift.id.replace(/\D/g, '').slice(-2) || '1', 10)
-  return (((num - 1) % 4) + 1) as 1 | 2 | 3 | 4
+  return (((num - 1) % 2) + 1) as 1 | 2
 }
 

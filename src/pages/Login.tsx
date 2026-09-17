@@ -38,13 +38,13 @@ export function Login() {
     push({
       tipe: 'sukses',
       judul: `Selamat datang, ${u.nama}`,
-      pesan: u.role === 'kasir' ? `Masuk sebagai kasir · Shift ${selectedShiftNomor}` : `Masuk sebagai ${u.role}`,
+      pesan: u.role === 'kasir' ? `Masuk sebagai kasir (Shift ${selectedShiftNomor})` : `Masuk sebagai ${u.role}`,
     })
     navigate(homeFor(u.role), { replace: true })
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-brand-900 p-4">
+    <div className="flex min-h-screen items-center justify-center bg-slate-950 p-4">
       <div className="grid w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl md:grid-cols-2">
         {/* Kiri: brand */}
         <div className="hidden flex-col justify-between bg-slate-900 p-8 text-white md:flex">
@@ -56,22 +56,31 @@ export function Login() {
               Sistem Inventory, POS &amp; Keuangan
             </h1>
             <p className="mt-2 text-sm text-slate-400">
-              Demo untuk toko retail di pasar. Mengacu pada SRS v1.0 &mdash; tanpa basis data,
-              seluruh data disimpan di perangkat.
+              Platform manajemen terpadu untuk operasional toko retail: persediaan barang,
+              kasir POS, dan pelaporan keuangan berkala.
             </p>
           </div>
-          <ul className="mt-8 space-y-2 text-sm text-slate-300">
-            <li>&bull; Inventory: produk, stok, supplier, stock opname</li>
-            <li>&bull; POS: transaksi, shift kasir, cetak struk</li>
-            <li>&bull; Keuangan: laporan, laba rugi, rekonsiliasi kas</li>
+          <ul className="mt-8 space-y-2.5 text-sm text-slate-300">
+            <li className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-brand-500" />
+              <span>Inventory: produk, stok, supplier, stock opname</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-brand-500" />
+              <span>POS: transaksi penjualan, shift kasir, cetak struk</span>
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-brand-500" />
+              <span>Keuangan: pembukuan, laba rugi, rekonsiliasi kas</span>
+            </li>
           </ul>
-          <p className="mt-8 text-xs text-slate-500">Versi demo 1.0 &middot; 10 September 2026</p>
+          <p className="mt-8 text-xs text-slate-500">Versi 1.0 (Produksi) | Toko Pasar Jaya</p>
         </div>
 
         {/* Kanan: form */}
         <div className="p-8">
           <h2 className="text-lg font-bold text-slate-800">Masuk ke Sistem</h2>
-          <p className="mt-1 text-sm text-slate-500">Pilih akun demo atau masukkan kredensial.</p>
+          <p className="mt-1 text-sm text-slate-500">Pilih akun pengguna atau masukkan kredensial.</p>
 
           <form onSubmit={submit} className="mt-5 space-y-4">
             <div>
@@ -96,13 +105,13 @@ export function Login() {
                   <label className="text-xs font-medium text-slate-600">Pilih Shift Kerja</label>
                   <span className="text-[11px] font-semibold text-emerald-600">Shift {selectedShiftNomor} Terpilih</span>
                 </div>
-                <div className="grid grid-cols-4 gap-2">
-                  {([1, 2, 3, 4] as const).map((s) => (
+                <div className="grid grid-cols-2 gap-2">
+                  {([1, 2] as const).map((s) => (
                     <button
                       key={s}
                       type="button"
                       onClick={() => setSelectedShiftNomor(s)}
-                      className={`flex flex-col items-center justify-center border py-2 text-xs font-semibold transition ${
+                      className={`flex flex-col items-center justify-center border py-2.5 text-xs font-semibold transition ${
                         selectedShiftNomor === s
                           ? 'border-emerald-600 bg-emerald-600 text-white shadow-xs'
                           : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-slate-100'
@@ -114,7 +123,7 @@ export function Login() {
                           selectedShiftNomor === s ? 'text-emerald-100' : 'text-slate-400'
                         }`}
                       >
-                        {s === 1 ? 'Pagi' : s === 2 ? 'Siang' : s === 3 ? 'Sore' : 'Malam'}
+                        {s === 1 ? 'Pagi (08:00 - 15:00)' : 'Siang / Malam (15:00 - 22:00)'}
                       </span>
                     </button>
                   ))}
@@ -130,7 +139,7 @@ export function Login() {
 
           <div className="mt-6">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Akun demo (klik untuk mengisi)
+              Pilihan Akun Pengguna Cepat
             </p>
             <div className="grid grid-cols-2 gap-2">
               {daftar.map((u) => (
@@ -142,7 +151,7 @@ export function Login() {
                 >
                   <p className="text-xs font-semibold text-slate-700">{u.nama}</p>
                   <p className="text-[10px] text-slate-400">
-                    @{u.username} &middot; PIN {u.pin} &middot; {u.role}
+                    @{u.username} | PIN {u.pin} | {u.role.toUpperCase()}
                   </p>
                 </button>
               ))}

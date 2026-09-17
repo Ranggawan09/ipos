@@ -90,7 +90,7 @@ export function Pengemasan() {
     push({
       tipe: 'sukses',
       judul: 'Pengemasan berhasil',
-      pesan: `${jumlahUnit} ${curahTerpilih.satuan} → ${totalKemasan} kemasan${waste > 0 ? `, waste: ${waste} ${resepTerpilih.satuanDasar}` : ''}`,
+      pesan: `${jumlahUnit} ${curahTerpilih.satuan} menjadi ${totalKemasan} kemasan${waste > 0 ? `, waste: ${waste} ${resepTerpilih.satuanDasar}` : ''}`,
     })
     setModal(false)
   }
@@ -254,7 +254,7 @@ export function Pengemasan() {
                         <p className="text-sm font-medium text-slate-700">{getNama(d.produkKemasanId)}</p>
                         <p className="text-[11px] text-slate-400">
                           @{resepItem?.beratPerKemasan ?? 0}
-                          {resepTerpilih.satuanDasar} · HPP {rupiah(hppKemasan)}
+                          {resepTerpilih.satuanDasar} | HPP {rupiah(hppKemasan)}
                         </p>
                       </div>
                       <div className="col-span-3">

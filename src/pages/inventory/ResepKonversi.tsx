@@ -254,8 +254,8 @@ export function ResepKonversi() {
           {curahTerpilih && (
             <div className="rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700">
               Stok curah saat ini: <span className="font-semibold">{curahTerpilih.stok} {curahTerpilih.satuan}</span>
-              {' · '}Harga beli: <span className="font-semibold">Rp {curahTerpilih.hargaBeli.toLocaleString('id-ID')}</span>
-              {' · '}HPP per {form.satuanDasar}:{' '}
+              {' | '}Harga beli: <span className="font-semibold">Rp {curahTerpilih.hargaBeli.toLocaleString('id-ID')}</span>
+              {' | '}HPP per {form.satuanDasar}:{' '}
               <span className="font-semibold">
                 Rp {form.beratPerUnit > 0 ? Math.round(curahTerpilih.hargaBeli / form.beratPerUnit).toLocaleString('id-ID') : 0}
               </span>

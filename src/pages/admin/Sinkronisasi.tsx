@@ -25,7 +25,7 @@ export function Sinkronisasi() {
   const konfirmasiReset = () => {
     resetData()
     setResetOpen(false)
-    push({ tipe: 'sukses', judul: 'Data demo dikembalikan ke kondisi awal' })
+    push({ tipe: 'sukses', judul: 'Data operasional dikembalikan ke pengaturan awal' })
   }
 
   return (
@@ -66,7 +66,7 @@ export function Sinkronisasi() {
           </div>
           <Button className="mt-4 w-full" onClick={sinkron}>Sinkronkan Sekarang ke Cloud</Button>
           <p className="mt-2 text-[11px] text-slate-400">
-            Pada sistem nyata, proses ini berjalan otomatis secara berkala melalui HTTPS dengan token otentikasi.
+            Sinkronisasi berjalan otomatis secara terjadwal melalui enkripsi HTTPS dengan otentikasi token aman.
           </p>
         </Card>
 
@@ -85,24 +85,24 @@ export function Sinkronisasi() {
         </Card>
       </div>
 
-      <Card title="Zona Demo" subtitle="Kembalikan seluruh data ke kondisi awal untuk presentasi ulang." className="border-rose-200">
+      <Card title="Penyetelan Ulang Data Bawaan" subtitle="Kembalikan seluruh data sistem ke konfigurasi awal toko." className="border-rose-200">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="max-w-xl text-sm text-slate-600">
-            Semua data demo tersimpan pada perangkat ini (localStorage browser). Reset akan menghapus
-            seluruh perubahan: produk, transaksi, shift, pengeluaran, dan log sinkronisasi.
+            Semua data operasional tersimpan pada basis data perangkat ini. Penyetelan ulang akan mengembalikan
+            seluruh produk, transaksi, shift, dan riwayat ke kondisi bawaan toko.
           </p>
-          <Button variant="danger" onClick={() => setResetOpen(true)}>Reset Data Demo</Button>
+          <Button variant="danger" onClick={() => setResetOpen(true)}>Reset Data Toko</Button>
         </div>
       </Card>
 
       <Modal
         open={resetOpen}
         onClose={() => setResetOpen(false)}
-        title="Reset Data Demo"
+        title="Reset Data Toko"
         footer={<><Button variant="secondary" onClick={() => setResetOpen(false)}>Batal</Button><Button variant="danger" onClick={konfirmasiReset}>Ya, Reset Sekarang</Button></>}
       >
         <p className="text-sm text-slate-600">
-          Seluruh data akan dikembalikan ke data contoh awal. Tindakan ini tidak dapat dibatalkan.
+          Seluruh data operasional akan dikembalikan ke kondisi bawaan awal. Pastikan Anda telah mengekspor laporan penting sebelum melanjutkan.
         </p>
       </Modal>
     </>

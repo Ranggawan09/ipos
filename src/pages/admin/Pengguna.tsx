@@ -118,9 +118,9 @@ export function Pengguna() {
           <div>
             <Label>Peran</Label>
             <Select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as Role })}>
-              <option value="kasir">Kasir — akses modul POS</option>
-              <option value="admin">Admin — akses penuh</option>
-              <option value="owner">Owner — dashboard read-only</option>
+              <option value="kasir">Kasir (akses modul POS)</option>
+              <option value="admin">Admin (akses penuh)</option>
+              <option value="owner">Owner (dashboard read-only)</option>
             </Select>
           </div>
           <label className="flex items-center gap-2 text-sm text-slate-600">

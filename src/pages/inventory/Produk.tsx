@@ -5,6 +5,7 @@ import { useSessionStore } from '@/store/useSessionStore'
 import { useToast } from '@/store/useToast'
 import { angka, rupiah } from '@/lib/format'
 import { Badge, Button, Card, DataTable, FR, Input, Label, Modal, PageHeader, Select } from '@/components/ui'
+import { ModalRestockSupplier } from '@/components/ModalRestockSupplier'
 
 const kosong: Omit<TProduk, 'id'> = {
   sku: '', barcode: '', nama: '', kategoriId: '', satuan: 'pcs',
@@ -12,7 +13,7 @@ const kosong: Omit<TProduk, 'id'> = {
 }
 
 export function Produk() {
-  const { produk, kategori, simpanProduk, hapusProduk, resepKonversi } = useDataStore()
+  const { produk, kategori, supplier, simpanProduk, hapusProduk, resepKonversi } = useDataStore()
   const currentUser = useSessionStore((s) => s.currentUser)
   const push = useToast((s) => s.push)
 
@@ -20,10 +21,13 @@ export function Produk() {
   const [filterKat, setFilterKat] = useState('')
   const [filterStok, setFilterStok] = useState('')
   const [modal, setModal] = useState(false)
+  const [modalRestock, setModalRestock] = useState(false)
   const [edit, setEdit] = useState<TProduk | null>(null)
   const [form, setForm] = useState<Omit<TProduk, 'id'>>(kosong)
   const [marginInput, setMarginInput] = useState<string>('')
   const [hapusTarget, setHapusTarget] = useState<TProduk | null>(null)
+
+  const jumlahKritis = useMemo(() => produk.filter((p) => p.stok <= p.stokMinimum).length, [produk])
 
   const katNama = (id: string) => kategori.find((k) => k.id === id)?.nama ?? '-'
 
@@ -115,6 +119,15 @@ export function Produk() {
         deskripsi={isOwner ? "Pantauan stok dan harga produk toko (mode baca owner)." : "Kelola seluruh item barang toko beserta harga dan batas stok minimum."}
         aksi={
           <>
+            {jumlahKritis > 0 && (
+              <Button
+                variant="secondary"
+                className="border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                onClick={() => setModalRestock(true)}
+              >
+                Rekomendasi Restock ({jumlahKritis})
+              </Button>
+            )}
             <Button variant="secondary" onClick={() => setCari('')}>
               {rows.length} dari {produk.length} produk
             </Button>
@@ -173,6 +186,7 @@ export function Produk() {
             { key: 'nama', header: 'Nama Produk', render: (p) => {
               const isCurah = resepKonversi.some((r) => r.produkCurahId === p.id)
               const isKemasan = resepKonversi.some((r) => r.items.some((it) => it.produkKemasanId === p.id))
+              const supp = supplier.find((s) => s.id === p.supplierId)
               return (
                 <div>
                   <p className="font-medium text-slate-700">
@@ -180,7 +194,18 @@ export function Produk() {
                     {isCurah && <Badge warna="blue" className="ml-1.5 text-[10px]">Curah</Badge>}
                     {isKemasan && <Badge warna="purple" className="ml-1.5 text-[10px]">Kemasan</Badge>}
                   </p>
-                  <p className="text-[11px] text-slate-400">{katNama(p.kategoriId)} &middot; {p.satuan}</p>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-0.5 text-[11px] text-slate-400">
+                    <span>{katNama(p.kategoriId)} | {p.satuan}</span>
+                    {supp ? (
+                      <span className="inline-flex items-center text-[10px] text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100 font-medium">
+                        {supp.nama}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center text-[10px] text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200/60">
+                        Supplier: -
+                      </span>
+                    )}
+                  </div>
                 </div>
               )
             } },
@@ -261,6 +286,23 @@ export function Produk() {
             <Label>Satuan</Label>
             <Input value={form.satuan} onChange={(e) => setForm({ ...form, satuan: e.target.value })} />
           </div>
+          <div className="md:col-span-2">
+            <Label>Supplier Pemasok</Label>
+            <Select
+              value={form.supplierId || ''}
+              onChange={(e) => setForm({ ...form, supplierId: e.target.value || undefined })}
+            >
+              <option value="">-- Belum Ditentukan (Pilih Supplier) --</option>
+              {supplier.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.nama} ({s.kontak} - {s.telepon})
+                </option>
+              ))}
+            </Select>
+            <p className="mt-1 text-[11px] text-slate-400">
+              Digunakan untuk pengelompokan pesanan restock (Purchase Order) otomatis saat stok menipis.
+            </p>
+          </div>
           <div className="md:col-span-2 rounded-lg border border-slate-200 bg-slate-50/60 p-3 space-y-2">
             <p className="text-xs font-semibold text-slate-700">Penetapan Harga & Margin</p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -315,7 +357,7 @@ export function Produk() {
                 </span>
               </span>
               <span className="text-[11px] text-slate-400">
-                💡 Harga jual otomatis dihitung dari harga beli + margin %
+                Harga jual dihitung otomatis dari harga beli + margin %.
               </span>
             </div>
           </div>
@@ -365,6 +407,11 @@ export function Produk() {
         </p>
         <p className="mt-2 text-xs text-slate-400">Operator: {currentUser?.nama}</p>
       </Modal>
+
+      <ModalRestockSupplier
+        open={modalRestock}
+        onClose={() => setModalRestock(false)}
+      />
     </>
   )
 }

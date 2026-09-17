@@ -10,8 +10,6 @@ const renderShiftBadge = (nomor: number) => {
   const configs: Record<number, { bg: string; label: string }> = {
     1: { bg: 'bg-emerald-100 border-emerald-300 text-emerald-800', label: 'Shift 1' },
     2: { bg: 'bg-amber-100 border-amber-300 text-amber-800', label: 'Shift 2' },
-    3: { bg: 'bg-purple-100 border-purple-300 text-purple-800', label: 'Shift 3' },
-    4: { bg: 'bg-cyan-100 border-cyan-300 text-cyan-800', label: 'Shift 4' },
   }
   const c = configs[nomor] || configs[1]
   return (
@@ -36,7 +34,7 @@ export function RiwayatKasir() {
 
   const shiftKasir = shifts.filter((s) => isAdmin || s.kasirId === currentUser?.id)
 
-  const getShiftNoForTrx = (shiftId: string): 1 | 2 | 3 | 4 => {
+  const getShiftNoForTrx = (shiftId: string): 1 | 2 => {
     const s = shifts.find((x) => x.id === shiftId)
     return getShiftNomor(s ?? (shiftId ? { id: shiftId } : null))
   }
@@ -47,7 +45,7 @@ export function RiwayatKasir() {
       const cocokKasir = !filterKasir || t.kasirId === filterKasir
       const shiftNo = getShiftNoForTrx(t.shiftId)
       const cocokShift = !filterShift || (
-        ['1', '2', '3', '4'].includes(filterShift)
+        ['1', '2'].includes(filterShift)
           ? String(shiftNo) === filterShift
           : t.shiftId === filterShift
       )
@@ -105,17 +103,15 @@ export function RiwayatKasir() {
             ))}
           </Select>
           <Select value={filterShift} onChange={(e) => setFilterShift(e.target.value)}>
-            <option value="">Semua shift</option>
+            <option value="">Semua shift (1–2)</option>
             <option value="1">Shift 1 (Pagi)</option>
-            <option value="2">Shift 2 (Siang)</option>
-            <option value="3">Shift 3 (Sore)</option>
-            <option value="4">Shift 4 (Malam)</option>
+            <option value="2">Shift 2 (Siang / Malam)</option>
             {shiftKasir.slice(0, 40).map((s) => (
-              <option key={s.id} value={s.id}>{tanggalJam(s.waktuBuka)} — {namaKasir(s.kasirId)}</option>
+              <option key={s.id} value={s.id}>{tanggalJam(s.waktuBuka)} ({namaKasir(s.kasirId)})</option>
             ))}
           </Select>
           <div className="flex items-center justify-end text-xs text-slate-500">
-            {rows.length} transaksi &middot; {rupiah(rows.filter((t) => t.status === 'selesai').reduce((a, t) => a + t.total, 0))}
+            {rows.length} transaksi | {rupiah(rows.filter((t) => t.status === 'selesai').reduce((a, t) => a + t.total, 0))}
           </div>
         </div>
       </Card>
@@ -172,7 +168,7 @@ export function RiwayatKasir() {
         {returTarget && (
           <div>
             <p className="mb-3 text-sm text-slate-600">
-              Nomor <span className="font-mono">{returTarget.nomor}</span> &middot; {tanggalJam(returTarget.waktu)}
+              Nomor <span className="font-mono">{returTarget.nomor}</span> | {tanggalJam(returTarget.waktu)}
             </p>
             <div className="overflow-hidden rounded-lg border border-slate-200">
               <table className="w-full text-sm">

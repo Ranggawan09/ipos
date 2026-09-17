@@ -1,13 +1,15 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useDataStore } from '@/store/useDataStore'
 import { hanyaSelesai, labaKotor, produkTerlaris, ringkasPerHari, stokKritis, totalPenjualan, nilaiStok } from '@/store/selectors'
 import { awalHariIni, angka, rupiah, rupiahShort, tanggalJam } from '@/lib/format'
 import { Badge, Card, EmptyState, FR, PageHeader, StatCard } from '@/components/ui'
+import { ModalRestockSupplier } from '@/components/ModalRestockSupplier'
 
 export function AdminDashboard() {
   const { produk, transaksi, pergerakan, kategori, users } = useDataStore()
+  const [modalRestock, setModalRestock] = useState(false)
 
   const mulaiHari = awalHariIni().toISOString()
   const trxHariIni = useMemo(
@@ -124,7 +126,7 @@ export function AdminDashboard() {
               <div key={t.id} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2">
                 <div className="min-w-0">
                   <p className="truncate font-mono text-[11px] text-slate-600">{t.nomor}</p>
-                  <p className="text-[11px] text-slate-400">{tanggalJam(t.waktu)} &middot; {namaKasir(t.kasirId)}</p>
+                  <p className="text-[11px] text-slate-400">{tanggalJam(t.waktu)} | {namaKasir(t.kasirId)}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-sm font-semibold text-slate-700">{rupiah(t.total)}</p>
@@ -138,14 +140,33 @@ export function AdminDashboard() {
         <Card
           title="Perlu Restock"
           subtitle={`${kritis.length} produk di bawah stok minimum`}
-          action={<Link to="/admin/barang-masuk" className="text-xs font-medium text-brand-600 hover:underline">Catat barang masuk</Link>}
+          action={
+            <div className="flex items-center gap-2">
+              {kritis.length > 0 && (
+                <button
+                  onClick={() => setModalRestock(true)}
+                  className="inline-flex items-center text-xs font-semibold text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded border border-amber-200 transition"
+                >
+                  PO Restock
+                </button>
+              )}
+              <Link to="/admin/barang-masuk" className="text-xs font-medium text-brand-600 hover:underline">
+                Barang masuk
+              </Link>
+            </div>
+          }
         >
           <div className="max-h-56 space-y-2 overflow-y-auto">
             {kritis.length === 0 ? (
               <EmptyState judul="Semua stok aman" />
             ) : (
               kritis.slice(0, 10).map((p) => (
-                <div key={p.id} className="flex items-center justify-between rounded-lg bg-rose-50/60 px-3 py-2">
+                <div
+                  key={p.id}
+                  onClick={() => setModalRestock(true)}
+                  className="flex items-center justify-between rounded-lg bg-rose-50/60 hover:bg-amber-50 px-3 py-2 cursor-pointer transition"
+                  title="Klik untuk buka rekomendasi restock & PO"
+                >
                   <div className="min-w-0">
                     <p className="truncate text-xs font-medium text-slate-700">{p.nama}</p>
                     <p className="font-mono text-[10px] text-slate-400">{p.sku}</p>
@@ -155,12 +176,25 @@ export function AdminDashboard() {
               ))
             )}
           </div>
+          {kritis.length > 0 && (
+            <button
+              onClick={() => setModalRestock(true)}
+              className="mt-3 w-full flex items-center justify-center py-2 px-3 text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 rounded-lg border border-amber-200 transition shadow-xs"
+            >
+              Detail Restock per Supplier & Cetak PO
+            </button>
+          )}
         </Card>
       </div>
 
       <p className="mt-4 text-center text-[11px] text-slate-400">
         Total pergerakan stok tercatat: {angka(pergerakan.length)} baris.
       </p>
+
+      <ModalRestockSupplier
+        open={modalRestock}
+        onClose={() => setModalRestock(false)}
+      />
     </>
   )
 }

@@ -31,7 +31,7 @@ type SessionState = {
   cart: CartItem[]
   diskonNota: number
   shiftId: string | null
-  selectedShiftNomor: 1 | 2 | 3 | 4
+  selectedShiftNomor: 1 | 2
   offlineMode: boolean
   pendingQueue: PendingTrx[]
   lastSyncAt: string | null
@@ -41,7 +41,7 @@ type SessionState = {
   setCurrentUser: (user: User | null) => void
 
   setShiftId: (id: string | null) => void
-  setSelectedShiftNomor: (nomor: 1 | 2 | 3 | 4) => void
+  setSelectedShiftNomor: (nomor: 1 | 2) => void
   setOffline: (v: boolean) => void
 
   addToCart: (p: Produk, qty?: number) => void
