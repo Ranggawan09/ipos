@@ -3,8 +3,9 @@ import type { Transaksi } from '@/types'
 import { useDataStore } from '@/store/useDataStore'
 import { useSessionStore } from '@/store/useSessionStore'
 import { useToast } from '@/store/useToast'
-import { rupiah, tanggalJam, getShiftNomor } from '@/lib/format'
-import { cetakStruk } from '@/lib/print'
+import { rupiah, tanggal, tanggalJam, getShiftNomor } from '@/lib/format'
+import { cetakLaporan, cetakStruk } from '@/lib/print'
+import { exportXLS } from '@/lib/csv'
 import { Badge, Button, Card, DataTable, FR, Input, Label, Modal, PageHeader, Select, Textarea } from '@/components/ui'
 
 const renderShiftBadge = (nomor: number) => {
@@ -21,6 +22,14 @@ const renderShiftBadge = (nomor: number) => {
   )
 }
 
+const getHariIni = () => {
+  const d = new Date()
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 export function TransaksiAdmin() {
   const { transaksi, users, shifts, voidTransaksi } = useDataStore()
   const currentUser = useSessionStore((s) => s.currentUser)
@@ -30,8 +39,8 @@ export function TransaksiAdmin() {
   const [cari, setCari] = useState('')
   const [filterShift, setFilterShift] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
-  const [dari, setDari] = useState('')
-  const [sampai, setSampai] = useState('')
+  const [dari, setDari] = useState(getHariIni)
+  const [sampai, setSampai] = useState(getHariIni)
   const [detail, setDetail] = useState<Transaksi | null>(null)
   const [voidTarget, setVoidTarget] = useState<Transaksi | null>(null)
   const [adminId, setAdminId] = useState('')
@@ -55,8 +64,8 @@ export function TransaksiAdmin() {
       const shiftNo = getShiftNoForTrx(t.shiftId)
       const cocokShift = !filterShift || String(shiftNo) === filterShift
       const cocokStatus = !filterStatus || t.status === filterStatus
-      const cocokDari = !dari || t.waktu >= new Date(dari).toISOString()
-      const cocokSampai = !sampai || t.waktu <= new Date(sampai + 'T23:59:59').toISOString()
+      const cocokDari = !dari || t.waktu >= new Date(dari + 'T00:00:00').toISOString()
+      const cocokSampai = !sampai || t.waktu <= new Date(sampai + 'T23:59:59.999').toISOString()
       return cocokCari && cocokShift && cocokStatus && cocokDari && cocokSampai
     })
   }, [transaksi, cari, filterShift, filterStatus, dari, sampai, shifts])
@@ -86,12 +95,110 @@ export function TransaksiAdmin() {
 
   const totalSelesai = rows.filter((t) => t.status === 'selesai').reduce((a, t) => a + t.total, 0)
 
+  const cetakPDF = () => {
+    const shiftText = filterShift ? `Shift ${filterShift}` : 'Semua Shift'
+    const statusText = filterStatus ? (filterStatus === 'selesai' ? 'Selesai' : 'Void') : 'Semua Status'
+    const periodeText =
+      dari && sampai && dari === sampai
+        ? `Hari Ini (${tanggal(dari)})`
+        : dari && sampai
+          ? `${tanggal(dari)} s/d ${tanggal(sampai)}`
+          : dari
+            ? `Sejak ${tanggal(dari)}`
+            : sampai
+              ? `Hingga ${tanggal(sampai)}`
+              : 'Seluruh Periode'
+
+    const tableRows =
+      rows.length === 0
+        ? '<tr><td colspan="8" style="text-align: center; color: #94a3b8; padding: 20px;">Tidak ada data transaksi.</td></tr>'
+        : rows
+            .map((t, idx) => {
+              const isVoid = t.status === 'void'
+              return `
+            <tr style="${isVoid ? 'color: #94a3b8; background-color: #f8fafc;' : ''}">
+              <td style="text-align: center;">${idx + 1}</td>
+              <td style="font-family: monospace; font-size: 11px;">${t.nomor}</td>
+              <td style="font-size: 11px;">${tanggalJam(t.waktu)}</td>
+              <td>${namaKasir(t.kasirId)}</td>
+              <td style="text-align: center;">Shift ${getShiftNoForTrx(t.shiftId)}</td>
+              <td style="text-align: center; text-transform: uppercase;">${t.metode}</td>
+              <td style="text-align: center; font-weight: bold; color: ${isVoid ? '#e11d48' : '#16a34a'};">
+                ${isVoid ? 'VOID' : 'Selesai'}
+              </td>
+              <td class="num" style="font-weight: 500;">${rupiah(t.total)}</td>
+            </tr>`
+            })
+            .join('')
+
+    const html = `
+      <div style="margin-bottom: 12px; font-size: 12px; color: #475569; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px;">
+        <span><strong>Shift:</strong> ${shiftText}</span> | 
+        <span><strong>Status:</strong> ${statusText}</span> | 
+        <span><strong>Jumlah:</strong> ${rows.length} transaksi</span> | 
+        <span><strong>Total Selesai:</strong> <strong>${rupiah(totalSelesai)}</strong></span>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 32px; text-align: center;">No</th>
+            <th>No. Transaksi</th>
+            <th>Waktu</th>
+            <th>Kasir</th>
+            <th style="text-align: center; width: 65px;">Shift</th>
+            <th style="text-align: center; width: 70px;">Metode</th>
+            <th style="text-align: center; width: 75px;">Status</th>
+            <th class="num" style="width: 110px;">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${tableRows}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="7" style="text-align: right; font-weight: bold;">TOTAL NILAI TRANSAKSI SELESAI:</td>
+            <td class="num" style="font-weight: bold;">${rupiah(totalSelesai)}</td>
+          </tr>
+        </tfoot>
+      </table>`
+
+    cetakLaporan('Laporan Transaksi Penjualan', periodeText, html)
+  }
+
+  const unduhXLS = () => {
+    exportXLS(
+      `transaksi-${dari || 'semua'}-sd-${sampai || 'semua'}.xls`,
+      ['No', 'No. Transaksi', 'Waktu', 'Kasir', 'Shift', 'Metode', 'Status', 'Total (Rp)'],
+      rows.map((t, i) => [
+        i + 1,
+        t.nomor,
+        tanggalJam(t.waktu),
+        namaKasir(t.kasirId),
+        `Shift ${getShiftNoForTrx(t.shiftId)}`,
+        t.metode.toUpperCase(),
+        t.status.toUpperCase(),
+        t.total,
+      ]),
+    )
+    push({ tipe: 'sukses', judul: 'Data transaksi diekspor ke Excel (.xls)' })
+  }
+
   return (
     <>
       <PageHeader
         judul="Transaksi Penjualan"
         deskripsi="Seluruh transaksi dari modul POS. Pembatalan (void) memerlukan otorisasi admin."
-        aksi={<FR kode="FR-POS-07" />}
+        aksi={
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="secondary" onClick={cetakPDF}>
+              Export PDF
+            </Button>
+            <Button size="sm" variant="secondary" onClick={unduhXLS}>
+              Export XLS
+            </Button>
+            <FR kode="FR-POS-07" />
+          </div>
+        }
       />
 
       <Card className="mb-4">
@@ -110,9 +217,35 @@ export function TransaksiAdmin() {
           <Input type="date" value={dari} onChange={(e) => setDari(e.target.value)} />
           <Input type="date" value={sampai} onChange={(e) => setSampai(e.target.value)} />
         </div>
-        <p className="mt-3 text-xs text-slate-500">
-          {rows.length} transaksi | Nilai transaksi selesai: <span className="font-semibold text-slate-700">{rupiah(totalSelesai)}</span>
-        </p>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 text-xs text-slate-500">
+          <div>
+            {rows.length} transaksi | Nilai transaksi selesai: <span className="font-semibold text-slate-700">{rupiah(totalSelesai)}</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Button
+              size="sm"
+              variant={dari === getHariIni() && sampai === getHariIni() ? 'primary' : 'ghost'}
+              className="px-2 py-0.5 text-xs"
+              onClick={() => {
+                setDari(getHariIni())
+                setSampai(getHariIni())
+              }}
+            >
+              Hari Ini
+            </Button>
+            <Button
+              size="sm"
+              variant={!dari && !sampai ? 'primary' : 'ghost'}
+              className="px-2 py-0.5 text-xs"
+              onClick={() => {
+                setDari('')
+                setSampai('')
+              }}
+            >
+              Semua Tanggal
+            </Button>
+          </div>
+        </div>
       </Card>
 
       <Card>

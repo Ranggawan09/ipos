@@ -25,6 +25,13 @@ export type Supplier = {
   alamat: string
 }
 
+export type VarianBobot = {
+  id: string
+  nama: string // contoh: "5 kg", "2 kg", "1 kg"
+  bobot: number // bobot per kemasan dalam satuan produk (misal 5 untuk 5 kg)
+  hargaJual: number
+}
+
 export type Produk = {
   id: string
   sku: string
@@ -38,6 +45,7 @@ export type Produk = {
   stok: number
   stokMinimum: number
   aktif: boolean
+  varian?: VarianBobot[]
 }
 
 export type JenisPergerakan =
@@ -78,6 +86,9 @@ export type DetailTransaksi = {
   qty: number
   diskonItem: number // nominal rupiah
   subtotal: number
+  varianId?: string
+  namaVarian?: string
+  bobot?: number
 }
 
 export type StatusTransaksi = 'selesai' | 'void' | 'menunggu_sinkron'

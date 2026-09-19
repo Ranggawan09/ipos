@@ -57,12 +57,9 @@ const ADMIN_NAV: NavGroup[] = [
       { to: '/admin/kategori', label: 'Kategori', icon: 'tag' },
       { to: '/admin/supplier', label: 'Supplier', icon: 'truck' },
       { to: '/admin/barang-masuk', label: 'Barang Masuk', icon: 'inbox' },
-      { to: '/admin/barang-keluar', label: 'Barang Keluar', icon: 'outbox' },
       { to: '/admin/stock-opname', label: 'Stock Opname', icon: 'clip' },
       { to: '/admin/riwayat-stok', label: 'Riwayat Stok', icon: 'history' },
       { to: '/admin/import', label: 'Import Produk', icon: 'upload' },
-      { to: '/admin/resep-konversi', label: 'Resep Konversi', icon: 'receipt' },
-      { to: '/admin/pengemasan', label: 'Pengemasan', icon: 'scissors' },
     ],
   },
   {

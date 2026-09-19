@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react'
-import type { Produk as TProduk } from '@/types'
+import type { Produk as TProduk, VarianBobot } from '@/types'
 import { useDataStore } from '@/store/useDataStore'
 import { useSessionStore } from '@/store/useSessionStore'
 import { useToast } from '@/store/useToast'
 import { angka, rupiah } from '@/lib/format'
-import { Badge, Button, Card, DataTable, FR, Input, Label, Modal, PageHeader, Select } from '@/components/ui'
-import { ModalRestockSupplier } from '@/components/ModalRestockSupplier'
+import { Badge, Button, Card, CurrencyInput, DataTable, FR, Input, Label, Modal, PageHeader, Select } from '@/components/ui'
 
 const kosong: Omit<TProduk, 'id'> = {
   sku: '', barcode: '', nama: '', kategoriId: '', satuan: 'pcs',
@@ -21,13 +20,10 @@ export function Produk() {
   const [filterKat, setFilterKat] = useState('')
   const [filterStok, setFilterStok] = useState('')
   const [modal, setModal] = useState(false)
-  const [modalRestock, setModalRestock] = useState(false)
   const [edit, setEdit] = useState<TProduk | null>(null)
   const [form, setForm] = useState<Omit<TProduk, 'id'>>(kosong)
   const [marginInput, setMarginInput] = useState<string>('')
   const [hapusTarget, setHapusTarget] = useState<TProduk | null>(null)
-
-  const jumlahKritis = useMemo(() => produk.filter((p) => p.stok <= p.stokMinimum).length, [produk])
 
   const katNama = (id: string) => kategori.find((k) => k.id === id)?.nama ?? '-'
 
@@ -93,10 +89,61 @@ export function Produk() {
     }
   }
 
+  const toggleVarian = (checked: boolean) => {
+    if (checked) {
+      const defaultSatuan = form.satuan === 'pcs' ? 'kg' : form.satuan
+      setForm({
+        ...form,
+        satuan: defaultSatuan,
+        varian: [
+          { id: `VAR-${Date.now()}-1`, nama: '5 kg', bobot: 5, hargaJual: Math.round(form.hargaJual * 5) || 70000 },
+          { id: `VAR-${Date.now()}-2`, nama: '2 kg', bobot: 2, hargaJual: Math.round(form.hargaJual * 2) || 30000 },
+          { id: `VAR-${Date.now()}-3`, nama: '1 kg', bobot: 1, hargaJual: form.hargaJual || 15000 },
+        ],
+      })
+    } else {
+      setForm({ ...form, varian: undefined })
+    }
+  }
+
+  const tambahVarian = () => {
+    const list = form.varian ? [...form.varian] : []
+    list.push({
+      id: `VAR-${Date.now()}-${list.length + 1}`,
+      nama: '',
+      bobot: 1,
+      hargaJual: form.hargaJual || 0,
+    })
+    setForm({ ...form, varian: list })
+  }
+
+  const ubahVarian = (index: number, field: keyof VarianBobot, val: any) => {
+    if (!form.varian) return
+    const list = form.varian.map((v, i) => (i === index ? { ...v, [field]: val } : v))
+    setForm({ ...form, varian: list })
+  }
+
+  const hapusVarian = (index: number) => {
+    if (!form.varian) return
+    const list = form.varian.filter((_, i) => i !== index)
+    setForm({ ...form, varian: list.length > 0 ? list : undefined })
+  }
+
   const simpan = () => {
     if (!form.nama.trim() || !form.sku.trim()) {
       push({ tipe: 'error', judul: 'Data belum lengkap', pesan: 'Nama dan SKU wajib diisi.' })
       return
+    }
+    if (form.varian && form.varian.length > 0) {
+      const invalid = form.varian.some((v) => !v.nama.trim() || v.bobot <= 0 || v.hargaJual <= 0)
+      if (invalid) {
+        push({
+          tipe: 'error',
+          judul: 'Data varian belum lengkap',
+          pesan: 'Nama, bobot, dan harga jual setiap varian harus diisi dengan benar.',
+        })
+        return
+      }
     }
     simpanProduk(edit ? { ...form, id: edit.id } : form)
     push({ tipe: 'sukses', judul: edit ? 'Produk diperbarui' : 'Produk ditambahkan', pesan: form.nama })
@@ -119,15 +166,6 @@ export function Produk() {
         deskripsi={isOwner ? "Pantauan stok dan harga produk toko (mode baca owner)." : "Kelola seluruh item barang toko beserta harga dan batas stok minimum."}
         aksi={
           <>
-            {jumlahKritis > 0 && (
-              <Button
-                variant="secondary"
-                className="border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
-                onClick={() => setModalRestock(true)}
-              >
-                Rekomendasi Restock ({jumlahKritis})
-              </Button>
-            )}
             <Button variant="secondary" onClick={() => setCari('')}>
               {rows.length} dari {produk.length} produk
             </Button>
@@ -193,6 +231,11 @@ export function Produk() {
                     {p.nama}
                     {isCurah && <Badge warna="blue" className="ml-1.5 text-[10px]">Curah</Badge>}
                     {isKemasan && <Badge warna="purple" className="ml-1.5 text-[10px]">Kemasan</Badge>}
+                    {p.varian && p.varian.length > 0 && (
+                      <Badge warna="purple" className="ml-1.5 text-[10px]">
+                        Varian Bobot ({p.varian.map((v) => v.nama).join(', ')})
+                      </Badge>
+                    )}
                   </p>
                   <div className="flex flex-wrap items-center gap-1.5 mt-0.5 text-[11px] text-slate-400">
                     <span>{katNama(p.kategoriId)} | {p.satuan}</span>
@@ -308,17 +351,11 @@ export function Produk() {
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div>
                 <Label>Harga Beli (Modal)</Label>
-                <div className="relative flex items-center">
-                  <span className="pointer-events-none absolute left-2.5 text-xs text-slate-400">Rp</span>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={form.hargaBeli || ''}
-                    onChange={(e) => handleHargaBeliChange(Number(e.target.value))}
-                    placeholder="0"
-                    className="pl-8"
-                  />
-                </div>
+                <CurrencyInput
+                  value={form.hargaBeli}
+                  onChange={handleHargaBeliChange}
+                  placeholder="0"
+                />
               </div>
               <div>
                 <Label>Margin (%)</Label>
@@ -336,17 +373,12 @@ export function Produk() {
               </div>
               <div>
                 <Label>Harga Jual</Label>
-                <div className="relative flex items-center">
-                  <span className="pointer-events-none absolute left-2.5 text-xs text-slate-400">Rp</span>
-                  <Input
-                    type="number"
-                    min="0"
-                    value={form.hargaJual || ''}
-                    onChange={(e) => handleHargaJualChange(Number(e.target.value))}
-                    placeholder="0"
-                    className="pl-8 font-semibold text-slate-800"
-                  />
-                </div>
+                <CurrencyInput
+                  value={form.hargaJual}
+                  onChange={handleHargaJualChange}
+                  placeholder="0"
+                  className="font-semibold text-slate-800"
+                />
               </div>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-1 text-xs text-slate-500 pt-1.5 border-t border-slate-200/60">
@@ -387,6 +419,89 @@ export function Produk() {
               Produk aktif dijual
             </label>
           </div>
+
+          {/* Pengaturan Varian Bobot (Shared Pool) */}
+          <div className="md:col-span-2 rounded-xl border border-blue-200 bg-blue-50/40 p-4 space-y-3">
+            <div className="flex items-start justify-between">
+              <div>
+                <label className="flex items-center gap-2 text-sm font-bold text-slate-800 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!(form.varian && form.varian.length > 0)}
+                    onChange={(e) => toggleVarian(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                  />
+                  <span>Produk Memiliki Varian Ukuran / Bobot (Dynamic Shared Pool)</span>
+                </label>
+                <p className="mt-1 text-xs text-slate-500">
+                  Cocok untuk barang curah/karungan seperti Beras, Gula, atau Minyak yang dijual dalam kemasan 5kg, 2kg, 1kg tanpa memecah SKU.
+                </p>
+              </div>
+              {form.varian && form.varian.length > 0 && (
+                <Button size="sm" variant="secondary" onClick={tambahVarian}>
+                  + Tambah Varian
+                </Button>
+              )}
+            </div>
+
+            {form.varian && form.varian.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-blue-100">
+                <div className="grid grid-cols-12 gap-2 text-[11px] font-semibold text-slate-600 px-1">
+                  <span className="col-span-4">Nama Varian (Label)</span>
+                  <span className="col-span-3">Bobot ({form.satuan || 'kg'})</span>
+                  <span className="col-span-4">Harga Jual (Rp)</span>
+                  <span className="col-span-1 text-center">Hapus</span>
+                </div>
+
+                {form.varian.map((v, idx) => (
+                  <div key={v.id || idx} className="grid grid-cols-12 gap-2 items-center bg-white p-2 rounded-lg border border-slate-200">
+                    <div className="col-span-4">
+                      <Input
+                        value={v.nama}
+                        onChange={(e) => ubahVarian(idx, 'nama', e.target.value)}
+                        placeholder="contoh: 5 kg"
+                        className="text-xs py-1"
+                      />
+                    </div>
+                    <div className="col-span-3">
+                      <Input
+                        type="number"
+                        min="0.1"
+                        step="0.1"
+                        value={v.bobot || ''}
+                        onChange={(e) => ubahVarian(idx, 'bobot', Number(e.target.value))}
+                        placeholder="1"
+                        className="text-xs py-1 font-mono"
+                      />
+                    </div>
+                    <div className="col-span-4">
+                      <CurrencyInput
+                        sizeVariant="sm"
+                        value={v.hargaJual}
+                        onChange={(val) => ubahVarian(idx, 'hargaJual', val)}
+                        placeholder="0"
+                        className="font-mono font-semibold text-emerald-600"
+                      />
+                    </div>
+                    <div className="col-span-1 flex justify-center">
+                      <button
+                        type="button"
+                        onClick={() => hapusVarian(idx)}
+                        className="h-6 w-6 rounded text-slate-400 hover:bg-rose-50 hover:text-rose-600 flex items-center justify-center font-bold text-sm"
+                        title="Hapus varian"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                <p className="text-[11px] text-slate-500 italic mt-1">
+                  * Stok induk di atas ({form.stok} {form.satuan}) akan menjadi kuota bersama. Saat varian 5 kg terjual 1 unit, stok induk otomatis berkurang 5 {form.satuan}.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </Modal>
 
@@ -407,11 +522,6 @@ export function Produk() {
         </p>
         <p className="mt-2 text-xs text-slate-400">Operator: {currentUser?.nama}</p>
       </Modal>
-
-      <ModalRestockSupplier
-        open={modalRestock}
-        onClose={() => setModalRestock(false)}
-      />
     </>
   )
 }

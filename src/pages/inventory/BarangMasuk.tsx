@@ -3,7 +3,8 @@ import { useDataStore } from '@/store/useDataStore'
 import { useSessionStore } from '@/store/useSessionStore'
 import { useToast } from '@/store/useToast'
 import { rupiah, tanggalJam, toDateInput } from '@/lib/format'
-import { Badge, Button, Card, DataTable, FR, Input, Label, Modal, PageHeader, Select } from '@/components/ui'
+import { Badge, Button, Card, CurrencyInput, DataTable, FR, Input, Label, Modal, PageHeader, Select } from '@/components/ui'
+import { ModalRestockSupplier } from '@/components/ModalRestockSupplier'
 
 type Baris = { produkId: string; qty: number; hargaBeli: number }
 
@@ -13,6 +14,7 @@ export function BarangMasuk() {
   const push = useToast((s) => s.push)
 
   const [modal, setModal] = useState(false)
+  const [modalRestock, setModalRestock] = useState(false)
   const [supplierId, setSupplierId] = useState(supplier[0]?.id ?? '')
   const [metode, setMetode] = useState<'tunai' | 'kredit'>('tunai')
   const [jatuhTempo, setJatuhTempo] = useState(() => {
@@ -22,6 +24,8 @@ export function BarangMasuk() {
   })
   const [baris, setBaris] = useState<Baris[]>([{ produkId: produk[0]?.id ?? '', qty: 1, hargaBeli: produk[0]?.hargaBeli ?? 0 }])
   const [cari, setCari] = useState('')
+
+  const jumlahKritis = useMemo(() => produk.filter((p) => p.aktif && p.stok <= p.stokMinimum).length, [produk])
 
   const total = baris.reduce((a, b) => a + b.qty * b.hargaBeli, 0)
 
@@ -87,7 +91,20 @@ export function BarangMasuk() {
       <PageHeader
         judul="Barang Masuk"
         deskripsi="Catat penerimaan barang dari supplier beserta jumlah dan harga beli."
-        aksi={<Button onClick={() => { reset(); setModal(true) }}>Catat Penerimaan</Button>}
+        aksi={
+          <div className="flex items-center gap-2">
+            {jumlahKritis > 0 && (
+              <Button
+                variant="secondary"
+                className="border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                onClick={() => setModalRestock(true)}
+              >
+                Rekomendasi Restock ({jumlahKritis})
+              </Button>
+            )}
+            <Button onClick={() => { reset(); setModal(true) }}>Catat Penerimaan</Button>
+          </div>
+        }
       />
 
       <Card
@@ -159,7 +176,11 @@ export function BarangMasuk() {
                   </div>
                   <div className="col-span-3">
                     <Label>Harga beli</Label>
-                    <Input type="number" value={b.hargaBeli} onChange={(e) => ubahBaris(i, { hargaBeli: Number(e.target.value) })} />
+                    <CurrencyInput
+                      sizeVariant="sm"
+                      value={b.hargaBeli}
+                      onChange={(val) => ubahBaris(i, { hargaBeli: val })}
+                    />
                   </div>
                   <div className="col-span-1 pb-2 text-right">
                     <Button size="sm" variant="ghost" className="text-rose-600" onClick={() => setBaris(baris.filter((_, idx) => idx !== i))}>×</Button>
@@ -174,6 +195,11 @@ export function BarangMasuk() {
           </div>
         </div>
       </Modal>
+
+      <ModalRestockSupplier
+        open={modalRestock}
+        onClose={() => setModalRestock(false)}
+      />
     </>
   )
 }

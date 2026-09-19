@@ -3,7 +3,7 @@ import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis
 import { useDataStore } from '@/store/useDataStore'
 import { useToast } from '@/store/useToast'
 import { hanyaSelesai } from '@/store/selectors'
-import { exportCSV } from '@/lib/csv'
+import { exportXLS } from '@/lib/csv'
 import { cetakLaporan } from '@/lib/print'
 import { rupiah, rupiahShort } from '@/lib/format'
 import { Button, Card, FR, PageHeader, Select, StatCard } from '@/components/ui'
@@ -65,9 +65,9 @@ export function LabaRugi() {
   ]
   const warnaGrafik = ['#1d6bf5', '#f59e0b', '#10b981', '#ef4444', labaBersih >= 0 ? '#8b5cf6' : '#ef4444']
 
-  const unduhCSV = () => {
-    exportCSV(
-      'laba-rugi.csv',
+  const unduhXLS = () => {
+    exportXLS(
+      'laba-rugi.xls',
       ['Komponen', 'Nilai'],
       [
         ['Pendapatan Penjualan', omzet],
@@ -78,7 +78,7 @@ export function LabaRugi() {
         ['Laba Bersih', labaBersih],
       ],
     )
-    push({ tipe: 'sukses', judul: 'Laporan laba rugi diekspor' })
+    push({ tipe: 'sukses', judul: 'Laporan laba rugi diekspor ke Excel (.xls)' })
   }
 
   const cetak = () => {
@@ -119,7 +119,7 @@ export function LabaRugi() {
           </Select>
         </div>
         <div className="flex gap-2">
-          <Button size="sm" variant="secondary" onClick={unduhCSV}>Export CSV</Button>
+          <Button size="sm" variant="secondary" onClick={unduhXLS}>Export XLS</Button>
           <Button size="sm" variant="secondary" onClick={cetak}>Cetak PDF</Button>
         </div>
       </div>

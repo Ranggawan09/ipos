@@ -502,15 +502,16 @@ export const useDataStore = create<DataState>()(
           const p = produks.find((x) => x.id === d.produkId)
           if (!p) return
           const sebelum = p.stok
-          p.stok = Math.max(0, sebelum - d.qty)
+          const potongStok = d.bobot ? d.bobot * d.qty : d.qty
+          p.stok = Math.max(0, sebelum - potongStok)
           pergerakanBaru.push({
             id: `MOV-SALE-${Date.now()}-${idx}`,
             produkId: p.id,
             jenis: 'penjualan',
-            jumlah: -d.qty,
+            jumlah: -potongStok,
             stokSebelum: sebelum,
             stokSesudah: p.stok,
-            keterangan: `Penjualan ${trx.nomor}`,
+            keterangan: `Penjualan ${trx.nomor}${d.namaVarian ? ` (${d.namaVarian} x${d.qty})` : ''}`,
             referensiId: trx.id,
             userId: kasirId,
             waktu: now,
@@ -537,10 +538,11 @@ export const useDataStore = create<DataState>()(
         // Broadcast mutasi stok realtime ke seluruh perangkat lain (HP kasir lain / owner)
         const mutasiItems = detail.map((d) => {
           const p = produks.find((x) => x.id === d.produkId)
+          const potongStok = d.bobot ? d.bobot * d.qty : d.qty
           return {
             produkId: d.produkId,
             namaProduk: d.namaProduk || p?.nama || 'Produk',
-            qty: d.qty,
+            qty: potongStok,
             sisaStok: p ? p.stok : 0,
           }
         })
@@ -560,15 +562,16 @@ export const useDataStore = create<DataState>()(
           const p = produks.find((x) => x.id === d.produkId)
           if (!p) return
           const sebelum = p.stok
-          p.stok = sebelum + d.qty
+          const balikStok = d.bobot ? d.bobot * d.qty : d.qty
+          p.stok = sebelum + balikStok
           pergerakanBaru.push({
             id: `MOV-VOID-${Date.now()}-${idx}`,
             produkId: p.id,
             jenis: 'void',
-            jumlah: d.qty,
+            jumlah: balikStok,
             stokSebelum: sebelum,
             stokSesudah: p.stok,
-            keterangan: `Void transaksi ${trx.nomor}`,
+            keterangan: `Void transaksi ${trx.nomor}${d.namaVarian ? ` (${d.namaVarian} x${d.qty})` : ''}`,
             referensiId: trx.id,
             userId: adminId,
             waktu: new Date().toISOString(),
@@ -603,12 +606,14 @@ export const useDataStore = create<DataState>()(
           const p = produks.find((x) => x.id === it.produkId)
           if (!p) return
           const sebelum = p.stok
-          p.stok = sebelum + it.qty
+          const dtl = trx.detail.find((d) => d.produkId === it.produkId)
+          const balikStok = dtl?.bobot ? dtl.bobot * it.qty : it.qty
+          p.stok = sebelum + balikStok
           pergerakanBaru.push({
             id: `MOV-RET-${Date.now()}-${idx}`,
             produkId: p.id,
             jenis: 'retur_pelanggan',
-            jumlah: it.qty,
+            jumlah: balikStok,
             stokSebelum: sebelum,
             stokSesudah: p.stok,
             keterangan: `Retur pelanggan atas ${trx.nomor}`,
@@ -647,6 +652,20 @@ export const useDataStore = create<DataState>()(
     {
       name: 'ipos-data-v1',
       storage: createJSONStorage(() => localStorage),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          const beras = state.produk.find((p) => p.nama === 'Beras Rojolele Curah')
+          if (beras && (!beras.varian || beras.varian.length === 0)) {
+            beras.satuan = 'kg'
+            beras.varian = [
+              { id: 'VRN-BRC-5', nama: '5 kg', bobot: 5, hargaJual: 70000 },
+              { id: 'VRN-BRC-2', nama: '2 kg', bobot: 2, hargaJual: 30000 },
+              { id: 'VRN-BRC-1', nama: '1 kg', bobot: 1, hargaJual: 15000 },
+            ]
+            if (beras.stok <= 0) beras.stok = 50
+          }
+        }
+      },
       partialize: (s) => {
         const {
           users, kategori, supplier, produk, pergerakan, transaksi, shifts,

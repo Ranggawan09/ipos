@@ -82,6 +82,8 @@ const TEMPLATE: Record<string, [string, string, number][]> = {
     ['Beras Eceran 5kg', 'pcs', 60000],
     ['Beras Eceran 2kg', 'pcs', 24000],
     ['Beras Eceran 1kg', 'pcs', 12000],
+    // ── VARIAN BOBOT: Beras Rojolele ──
+    ['Beras Rojolele Curah', 'kg', 12000],
     // ── CURAH: Minyak Goreng ──
     ['Minyak Goreng Curah 18L', 'jerigen', 270000],
     ['Minyak Goreng Eceran 1L', 'botol', 15000],
@@ -214,7 +216,7 @@ export function buildProduk(): Produk[] {
         stok = int(0, stokMin)
       }
 
-      list.push({
+      const prod: Produk = {
         id: `PRD-${String(n).padStart(4, '0')}`,
         sku: `SKU${String(n).padStart(4, '0')}`,
         barcode: `899${String(1000000 + n).slice(-7)}`,
@@ -227,7 +229,19 @@ export function buildProduk(): Produk[] {
         stok,
         stokMinimum: stokMin,
         aktif: true,
-      })
+      }
+
+      // Produk varian bobot: Beras Rojolele Curah
+      if (nama === 'Beras Rojolele Curah') {
+        prod.stok = 50
+        prod.varian = [
+          { id: 'VRN-BRC-5', nama: '5 kg', bobot: 5, hargaJual: 70000 },
+          { id: 'VRN-BRC-2', nama: '2 kg', bobot: 2, hargaJual: 30000 },
+          { id: 'VRN-BRC-1', nama: '1 kg', bobot: 1, hargaJual: 15000 },
+        ]
+      }
+
+      list.push(prod)
       n++
     })
   })

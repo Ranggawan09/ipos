@@ -2,8 +2,8 @@
 /**
  * iPOS Demo — Live Sync Relay (Flat-File / Zero Database).
  *
- * Digunakan saat aplikasi dijalankan di Shared Hosting tanpa perlu setup database MySQL di cPanel.
- * Menyimpan event mutasi stok realtime ke file JSON sementara.
+ * Menggunakan sistem nomor revisi (revision sequence) agar bebas dari
+ * perbedaan jam (clock-skew) antara perangkat HP dan server shared hosting.
  */
 
 declare(strict_types=1);
@@ -19,38 +19,66 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {
     exit;
 }
 
-$storageDir = __DIR__ . '/storage';
-if (!is_dir($storageDir)) {
-    @mkdir($storageDir, 0777, true);
-}
-
-$eventsFile = $storageDir . '/sync_events.json';
-
-function getEvents(string $file): array
+// Tentukan direktori penyimpanan yang benar-benar bisa ditulis
+function getEventsFilePath(): string
 {
-    if (!file_exists($file)) return [];
-    $raw = @file_get_contents($file);
-    if (!$raw) return [];
-    $data = json_decode($raw, true);
-    return is_array($data) ? $data : [];
-}
+    $candidates = [
+        __DIR__ . '/storage',
+        __DIR__,
+        sys_get_temp_dir(),
+    ];
 
-function saveEvents(string $file, array $events): void
-{
-    // Batasi 50 event terakhir
-    if (count($events) > 50) {
-        $events = array_slice($events, -50);
+    foreach ($candidates as $dir) {
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0777, true);
+        }
+        if (is_dir($dir) && is_writable($dir)) {
+            return $dir . '/ipos_sync_store.json';
+        }
     }
-    @file_put_contents($file, json_encode($events, JSON_UNESCAPED_UNICODE), LOCK_EX);
+
+    return sys_get_temp_dir() . '/ipos_sync_store.json';
+}
+
+$eventsFile = getEventsFilePath();
+
+function loadStore(string $file): array
+{
+    if (!file_exists($file)) {
+        return ['revision' => 0, 'events' => []];
+    }
+    $raw = @file_get_contents($file);
+    if (!$raw) {
+        return ['revision' => 0, 'events' => []];
+    }
+    $data = json_decode($raw, true);
+    if (!is_array($data)) {
+        return ['revision' => 0, 'events' => []];
+    }
+    return [
+        'revision' => (int) ($data['revision'] ?? 0),
+        'events' => is_array($data['events'] ?? null) ? $data['events'] : [],
+    ];
+}
+
+function saveStore(string $file, array $store): void
+{
+    if (count($store['events']) > 60) {
+        $store['events'] = array_slice($store['events'], -50);
+    }
+    @file_put_contents($file, json_encode($store, JSON_UNESCAPED_UNICODE), LOCK_EX);
 }
 
 $action = $_GET['action'] ?? 'ping';
 
 if ($action === 'ping') {
+    $store = loadStore($eventsFile);
     echo json_encode([
         'ok' => true,
         'mode' => 'flat-file-zero-db',
-        'serverTime' => round(microtime(true) * 1000),
+        'current_rev' => $store['revision'],
+        'storage_path' => basename($eventsFile),
+        'timestamp' => round(microtime(true) * 1000),
     ]);
     exit;
 }
@@ -61,34 +89,37 @@ if ($action === 'broadcast' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (!is_array($payload)) {
         http_response_code(400);
-        echo json_encode(['ok' => false, 'error' => 'Invalid JSON']);
+        echo json_encode(['ok' => false, 'error' => 'Invalid JSON payload']);
         exit;
     }
 
+    $store = loadStore($eventsFile);
+    $store['revision'] = $store['revision'] + 1;
+    $payload['rev'] = $store['revision'];
     $payload['serverReceivedAt'] = round(microtime(true) * 1000);
-    if (!isset($payload['timestamp'])) {
-        $payload['timestamp'] = $payload['serverReceivedAt'];
-    }
 
-    $events = getEvents($eventsFile);
-    $events[] = $payload;
-    saveEvents($eventsFile, $events);
+    $store['events'][] = $payload;
+    saveStore($eventsFile, $store);
 
-    echo json_encode(['ok' => true, 'timestamp' => $payload['serverReceivedAt']]);
+    echo json_encode([
+        'ok' => true,
+        'rev' => $store['revision'],
+        'serverTime' => $payload['serverReceivedAt'],
+    ]);
     exit;
 }
 
 if ($action === 'poll') {
-    $since = isset($_GET['since']) ? (float) $_GET['since'] : 0;
+    $sinceRev = isset($_GET['since_rev']) ? (int) $_GET['since_rev'] : 0;
     $excludeDevice = $_GET['exclude'] ?? '';
 
-    $events = getEvents($eventsFile);
+    $store = loadStore($eventsFile);
     $fresh = [];
 
-    foreach ($events as $ev) {
-        $ts = (float) ($ev['timestamp'] ?? 0);
+    foreach ($store['events'] as $ev) {
+        $rev = (int) ($ev['rev'] ?? 0);
         $device = $ev['senderDevice'] ?? '';
-        if ($ts > $since) {
+        if ($rev > $sinceRev) {
             if ($excludeDevice !== '' && $device === $excludeDevice) {
                 continue;
             }
@@ -98,6 +129,7 @@ if ($action === 'poll') {
 
     echo json_encode([
         'ok' => true,
+        'current_rev' => $store['revision'],
         'events' => $fresh,
         'now' => round(microtime(true) * 1000),
     ]);

@@ -1,9 +1,10 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import type { Produk, User } from '@/types'
+import type { Produk, User, VarianBobot } from '@/types'
 import { useDataStore } from './useDataStore'
 
 export type CartItem = {
+  cartItemId: string
   produkId: string
   nama: string
   sku: string
@@ -12,6 +13,9 @@ export type CartItem = {
   qty: number
   diskonItem: number
   stokTersedia: number
+  varianId?: string
+  namaVarian?: string
+  bobot?: number
 }
 
 export type PendingTrx = {
@@ -44,10 +48,10 @@ type SessionState = {
   setSelectedShiftNomor: (nomor: 1 | 2) => void
   setOffline: (v: boolean) => void
 
-  addToCart: (p: Produk, qty?: number) => void
-  setQty: (produkId: string, qty: number) => void
-  setDiskonItem: (produkId: string, diskon: number) => void
-  removeFromCart: (produkId: string) => void
+  addToCart: (p: Produk, qty?: number, varian?: VarianBobot) => void
+  setQty: (itemKey: string, qty: number) => void
+  setDiskonItem: (itemKey: string, diskon: number) => void
+  removeFromCart: (itemKey: string) => void
   clearCart: () => void
   setDiskonNota: (v: number) => void
 
@@ -55,6 +59,8 @@ type SessionState = {
   flushPending: () => number
   setLastSync: (iso: string) => void
 }
+
+const matchItem = (c: CartItem, key: string) => (c.cartItemId ? c.cartItemId === key : c.produkId === key)
 
 export const useSessionStore = create<SessionState>()(
   persist(
@@ -77,33 +83,44 @@ export const useSessionStore = create<SessionState>()(
       setSelectedShiftNomor: (nomor) => set({ selectedShiftNomor: nomor }),
       setOffline: (v) => set({ offlineMode: v }),
 
-      addToCart: (p, qty = 1) => {
+      addToCart: (p, qty = 1, varian) => {
         const cart = [...get().cart]
-        const ada = cart.find((c) => c.produkId === p.id)
+        const cartItemId = varian ? `${p.id}-${varian.id}` : p.id
+        const ada = cart.find((c) => matchItem(c, cartItemId))
+
+        const stokTersedia = varian ? Math.floor(p.stok / varian.bobot) : p.stok
+        const hargaJual = varian ? varian.hargaJual : p.hargaJual
+        const hargaBeli = varian ? Math.round(p.hargaBeli * varian.bobot) : p.hargaBeli
+        const nama = varian ? `${p.nama} (${varian.nama})` : p.nama
+
         if (ada) {
           ada.qty = Math.min(ada.stokTersedia, ada.qty + qty)
         } else {
           cart.push({
+            cartItemId,
             produkId: p.id,
-            nama: p.nama,
+            nama,
             sku: p.sku,
-            hargaJual: p.hargaJual,
-            hargaBeli: p.hargaBeli,
-            qty: Math.min(p.stok, qty),
+            hargaJual,
+            hargaBeli,
+            qty: Math.min(stokTersedia, qty),
             diskonItem: 0,
-            stokTersedia: p.stok,
+            stokTersedia,
+            varianId: varian?.id,
+            namaVarian: varian?.nama,
+            bobot: varian?.bobot,
           })
         }
         set({ cart })
       },
-      setQty: (produkId, qty) => {
+      setQty: (itemKey, qty) => {
         if (qty <= 0) {
-          set({ cart: get().cart.filter((c) => c.produkId !== produkId) })
+          set({ cart: get().cart.filter((c) => !matchItem(c, itemKey)) })
           return
         }
         set({
           cart: get().cart.map((c) =>
-            c.produkId === produkId
+            matchItem(c, itemKey)
               ? {
                   ...c,
                   qty: Math.min(c.stokTersedia, qty),
@@ -113,15 +130,15 @@ export const useSessionStore = create<SessionState>()(
           ),
         })
       },
-      setDiskonItem: (produkId, diskon) =>
+      setDiskonItem: (itemKey, diskon) =>
         set({
           cart: get().cart.map((c) =>
-            c.produkId === produkId
+            matchItem(c, itemKey)
               ? { ...c, diskonItem: Math.max(0, Math.min(c.hargaJual * c.qty, diskon)) }
               : c,
           ),
         }),
-      removeFromCart: (produkId) => set({ cart: get().cart.filter((c) => c.produkId !== produkId) }),
+      removeFromCart: (itemKey) => set({ cart: get().cart.filter((c) => !matchItem(c, itemKey)) }),
       clearCart: () => set({ cart: [], diskonNota: 0 }),
       setDiskonNota: (v) => set({ diskonNota: Math.max(0, v) }),
 
@@ -147,6 +164,9 @@ export const useSessionStore = create<SessionState>()(
                 qty: c.qty,
                 diskonItem: c.diskonItem,
                 subtotal,
+                varianId: c.varianId,
+                namaVarian: c.namaVarian,
+                bobot: c.bobot,
               }
             }),
             diskonNota: p.diskonNota,

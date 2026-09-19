@@ -3,7 +3,7 @@ import { useDataStore } from '@/store/useDataStore'
 import { useSessionStore } from '@/store/useSessionStore'
 import { useToast } from '@/store/useToast'
 import { rupiah, tanggalJam, getShiftNomor } from '@/lib/format'
-import { Badge, Button, Card, DataTable, Input, Label, Modal, PageHeader, StatCard } from '@/components/ui'
+import { Badge, Button, Card, CurrencyInput, DataTable, Label, Modal, PageHeader, StatCard } from '@/components/ui'
 
 const renderShiftBadge = (nomor: number) => {
   const configs: Record<number, { bg: string; label: string }> = {
@@ -183,7 +183,7 @@ export function ShiftPage() {
           </div>
           <div>
             <Label>Saldo kas akhir (hasil hitung fisik)</Label>
-            <Input type="number" value={saldoAkhir} onChange={(e) => setSaldoAkhir(Number(e.target.value))} className="text-lg font-semibold" />
+            <CurrencyInput sizeVariant="lg" value={saldoAkhir} onChange={setSaldoAkhir} className="text-lg font-semibold" />
           </div>
           <div className={`flex items-center justify-between rounded-lg px-3 py-2.5 ${selisihShift === 0 ? 'bg-emerald-50' : selisihShift > 0 ? 'bg-brand-50' : 'bg-rose-50'}`}>
             <span className="text-sm font-medium text-slate-600">Selisih</span>

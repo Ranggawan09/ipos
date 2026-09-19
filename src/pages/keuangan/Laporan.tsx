@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useDataStore } from '@/store/useDataStore'
 import { useToast } from '@/store/useToast'
 import { hanyaSelesai } from '@/store/selectors'
-import { exportCSV } from '@/lib/csv'
+import { exportXLS } from '@/lib/csv'
 import { cetakLaporan } from '@/lib/print'
 import { angka, rupiah, tanggalSingkat, getShiftNomor } from '@/lib/format'
 import { Badge, Button, Card, DataTable, FR, PageHeader, Select, StatCard } from '@/components/ui'
@@ -211,13 +211,13 @@ export function LaporanPenjualan() {
   const namaKatTerpilih = kategori.find((k) => k.id === filterKategori)?.nama ?? 'Semua Kategori'
   const shiftTerpilihText = filterShift === 'semua' ? 'Semua Shift' : `Shift ${filterShift}`
 
-  const unduhCSV = () => {
-    exportCSV(
-      `laporan-penjualan-${periode}-shift-${filterShift}.csv`,
+  const unduhXLS = () => {
+    exportXLS(
+      `laporan-penjualan-${periode}-shift-${filterShift}.xls`,
       ['Periode / Shift', 'Jumlah Transaksi', 'Omzet', 'HPP', 'Laba Kotor'],
       rows.map((r) => [r.label, r.transaksi, r.omzet, r.hpp, r.laba]),
     )
-    push({ tipe: 'sukses', judul: 'Laporan diekspor ke CSV' })
+    push({ tipe: 'sukses', judul: 'Laporan diekspor ke Excel (.xls)' })
   }
 
   const cetak = () => {
@@ -316,8 +316,8 @@ export function LaporanPenjualan() {
                 Kategori per Shift (1–2)
               </button>
             </div>
-            <Button size="sm" variant="secondary" onClick={unduhCSV}>
-              Export CSV
+            <Button size="sm" variant="secondary" onClick={unduhXLS}>
+              Export XLS
             </Button>
             <Button size="sm" variant="secondary" onClick={cetak}>
               Cetak PDF

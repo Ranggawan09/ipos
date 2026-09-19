@@ -5,7 +5,7 @@ import { useSessionStore } from '@/store/useSessionStore'
 import { useToast } from '@/store/useToast'
 import { rupiah, tanggalSingkat, toDateInput } from '@/lib/format'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { Badge, Button, Card, DataTable, FR, Input, Label, Modal, PageHeader, Select, StatCard } from '@/components/ui'
+import { Badge, Button, Card, CurrencyInput, DataTable, FR, Input, Label, Modal, PageHeader, Select, StatCard } from '@/components/ui'
 
 const KATEGORI = [
   { value: 'listrik', label: 'Listrik & air' },
@@ -166,7 +166,10 @@ export function Pengeluaran() {
           </div>
           <div>
             <Label>Jumlah (Rp)</Label>
-            <Input type="number" value={form.jumlah} onChange={(e) => setForm({ ...form, jumlah: Number(e.target.value) })} />
+            <CurrencyInput
+              value={form.jumlah}
+              onChange={(val) => setForm({ ...form, jumlah: val })}
+            />
           </div>
         </div>
       </Modal>

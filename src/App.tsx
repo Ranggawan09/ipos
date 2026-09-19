@@ -13,12 +13,9 @@ import { Produk } from '@/pages/inventory/Produk'
 import { Kategori } from '@/pages/inventory/Kategori'
 import { Supplier } from '@/pages/inventory/Supplier'
 import { BarangMasuk } from '@/pages/inventory/BarangMasuk'
-import { BarangKeluar } from '@/pages/inventory/BarangKeluar'
 import { StockOpname } from '@/pages/inventory/StockOpname'
 import { RiwayatStok } from '@/pages/inventory/RiwayatStok'
 import { ImportProduk } from '@/pages/inventory/ImportProduk'
-import { ResepKonversi } from '@/pages/inventory/ResepKonversi'
-import { Pengemasan } from '@/pages/inventory/Pengemasan'
 
 import { KasirPOS } from '@/pages/pos/Kasir'
 import { RiwayatKasir } from '@/pages/pos/RiwayatKasir'
@@ -53,12 +50,12 @@ export default function App() {
           <Route path="kategori" element={<Kategori />} />
           <Route path="supplier" element={<Supplier />} />
           <Route path="barang-masuk" element={<BarangMasuk />} />
-          <Route path="barang-keluar" element={<BarangKeluar />} />
+          <Route path="barang-keluar" element={<Navigate to="/admin/riwayat-stok" replace />} />
           <Route path="stock-opname" element={<StockOpname />} />
           <Route path="riwayat-stok" element={<RiwayatStok />} />
           <Route path="import" element={<ImportProduk />} />
-          <Route path="resep-konversi" element={<ResepKonversi />} />
-          <Route path="pengemasan" element={<Pengemasan />} />
+          <Route path="resep-konversi" element={<Navigate to="/admin/produk" replace />} />
+          <Route path="pengemasan" element={<Navigate to="/admin/produk" replace />} />
           <Route path="transaksi" element={<TransaksiAdmin />} />
           <Route path="shift" element={<ShiftPage />} />
           <Route path="laporan" element={<LaporanPenjualan />} />

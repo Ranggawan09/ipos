@@ -1,12 +1,14 @@
 import { useMemo, useState } from 'react'
 import { useDataStore } from '@/store/useDataStore'
-import { exportCSV } from '@/lib/csv'
+import { useToast } from '@/store/useToast'
+import { exportXLS } from '@/lib/csv'
 import { cetakLaporan } from '@/lib/print'
 import { rupiah, tanggalJam } from '@/lib/format'
 import { Badge, Button, Card, DataTable, FR, Input, PageHeader, Select, StatCard } from '@/components/ui'
 
 export function Rekonsiliasi() {
   const { shifts, users, transaksi } = useDataStore()
+  const push = useToast((s) => s.push)
   const [filterKasir, setFilterKasir] = useState('')
   const [dari, setDari] = useState('')
 
@@ -30,12 +32,14 @@ export function Rekonsiliasi() {
   const totalSelisih = totalFisik - totalPerkiraan
   const jumlahSelisih = rows.filter((r) => r.selisih !== 0).length
 
-  const unduhCSV = () =>
-    exportCSV(
-      'rekonsiliasi-kas.csv',
+  const unduhXLS = () => {
+    exportXLS(
+      'rekonsiliasi-kas.xls',
       ['Kasir', 'Waktu Buka', 'Saldo Awal', 'Penjualan Tunai', 'Perkiraan Kas', 'Kas Fisik', 'Selisih', 'Transaksi', 'Void'],
       rows.map((r) => [namaKasir(r.kasirId), tanggalJam(r.waktuBuka), r.saldoAwal, r.totalTunai, r.perkiraan, r.fisik, r.selisih, r.jumlahTransaksi, r.jmlVoid]),
     )
+    push({ tipe: 'sukses', judul: 'Rekonsiliasi diekspor ke Excel (.xls)' })
+  }
 
   const cetak = () =>
     cetakLaporan(
@@ -76,7 +80,7 @@ export function Rekonsiliasi() {
           </Select>
           <Input type="date" value={dari} onChange={(e) => setDari(e.target.value)} />
           <div className="flex gap-2 sm:col-span-2 sm:justify-end">
-            <Button size="sm" variant="secondary" onClick={unduhCSV}>Export CSV</Button>
+            <Button size="sm" variant="secondary" onClick={unduhXLS}>Export XLS</Button>
             <Button size="sm" variant="secondary" onClick={cetak}>Cetak PDF</Button>
           </div>
         </div>

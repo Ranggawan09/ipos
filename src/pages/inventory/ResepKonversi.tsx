@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import type { ResepKonversi as TResep } from '@/types'
 import { useDataStore } from '@/store/useDataStore'
 import { useToast } from '@/store/useToast'
-import { Badge, Button, Card, DataTable, Input, Label, Modal, PageHeader, Select } from '@/components/ui'
+import { Badge, Button, Card, CurrencyInput, DataTable, Input, Label, Modal, PageHeader, Select } from '@/components/ui'
 
 type ItemForm = { produkKemasanId: string; beratPerKemasan: number }
 
@@ -312,10 +312,9 @@ export function ResepKonversi() {
 
           <div>
             <Label>Biaya kemasan per eksekusi (opsional)</Label>
-            <Input
-              type="number"
+            <CurrencyInput
               value={form.biayaKemasanPerUnit}
-              onChange={(e) => setForm({ ...form, biayaKemasanPerUnit: Number(e.target.value) })}
+              onChange={(val) => setForm({ ...form, biayaKemasanPerUnit: val })}
             />
           </div>
         </div>

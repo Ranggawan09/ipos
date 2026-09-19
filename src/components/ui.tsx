@@ -76,6 +76,134 @@ export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttribute
 )
 Input.displayName = 'Input'
 
+export interface CurrencyInputProps
+  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'> {
+  value?: number
+  onChange?: (value: number) => void
+  prefix?: string
+  sizeVariant?: 'sm' | 'md' | 'lg'
+  wrapperClassName?: string
+}
+
+export const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputProps>(
+  (
+    {
+      value = 0,
+      onChange,
+      prefix = 'Rp',
+      sizeVariant = 'md',
+      placeholder = '0',
+      className = '',
+      wrapperClassName = '',
+      disabled,
+      ...rest
+    },
+    forwardedRef,
+  ) => {
+    const inputRef = React.useRef<HTMLInputElement | null>(null)
+    const [isFocused, setIsFocused] = React.useState(false)
+
+    React.useImperativeHandle(forwardedRef, () => inputRef.current as HTMLInputElement)
+
+    const formatNumber = (num: number): string => {
+      if (!num && num !== 0) return ''
+      return Math.round(num).toLocaleString('id-ID')
+    }
+
+    const displayValue = React.useMemo(() => {
+      if (isFocused && (!value || value === 0)) return ''
+      if (!value || value === 0) return '0'
+      return formatNumber(value)
+    }, [value, isFocused])
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const raw = e.target.value
+      const clean = raw.replace(/\D/g, '')
+      const num = clean === '' ? 0 : parseInt(clean, 10)
+
+      const cursorPosition = e.target.selectionStart || 0
+      const digitsBeforeCursor = raw.slice(0, cursorPosition).replace(/\D/g, '').length
+
+      if (onChange) {
+        onChange(num)
+      }
+
+      requestAnimationFrame(() => {
+        if (!inputRef.current) return
+        const formatted = formatNumber(num)
+        let digitCount = 0
+        let newCursor = 0
+        for (let i = 0; i < formatted.length; i++) {
+          if (/\d/.test(formatted[i])) {
+            digitCount++
+          }
+          if (digitCount === digitsBeforeCursor) {
+            newCursor = i + 1
+            break
+          }
+        }
+        if (digitCount < digitsBeforeCursor) {
+          newCursor = formatted.length
+        }
+        inputRef.current.setSelectionRange(newCursor, newCursor)
+      })
+    }
+
+    const sizeConfig = {
+      sm: {
+        input: 'px-2 py-1 text-xs',
+        prefixPl: 'pl-6',
+        prefix: 'left-2 text-[10px]',
+      },
+      md: {
+        input: 'px-3 py-2 text-sm',
+        prefixPl: 'pl-8',
+        prefix: 'left-2.5 text-xs',
+      },
+      lg: {
+        input: 'px-3.5 py-2.5 text-base',
+        prefixPl: 'pl-9',
+        prefix: 'left-3 text-sm',
+      },
+    }[sizeVariant]
+
+    const hasPrefix = Boolean(prefix)
+    const paddingLeftCls = hasPrefix ? sizeConfig.prefixPl : ''
+
+    return (
+      <div className={`relative flex items-center w-full ${wrapperClassName}`}>
+        {hasPrefix && (
+          <span
+            className={`pointer-events-none absolute font-semibold text-slate-400 select-none ${sizeConfig.prefix}`}
+          >
+            {prefix}
+          </span>
+        )}
+        <input
+          ref={inputRef}
+          type="text"
+          inputMode="numeric"
+          value={displayValue}
+          onChange={handleChange}
+          onFocus={(e) => {
+            setIsFocused(true)
+            rest.onFocus?.(e)
+          }}
+          onBlur={(e) => {
+            setIsFocused(false)
+            rest.onBlur?.(e)
+          }}
+          placeholder={placeholder}
+          disabled={disabled}
+          className={`${fieldCls} ${sizeConfig.input} ${paddingLeftCls} ${className}`}
+          {...rest}
+        />
+      </div>
+    )
+  },
+)
+CurrencyInput.displayName = 'CurrencyInput'
+
 export const Select = React.forwardRef<HTMLSelectElement, React.SelectHTMLAttributes<HTMLSelectElement>>(
   ({ className = '', ...rest }, ref) => (
     <select ref={ref} className={`${fieldCls} ${className}`} {...rest} />

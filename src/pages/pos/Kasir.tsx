@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { MetodePembayaran, Produk, Transaksi } from '@/types'
+import type { MetodePembayaran, Produk, Transaksi, VarianBobot } from '@/types'
 import { useDataStore } from '@/store/useDataStore'
 import { useSessionStore } from '@/store/useSessionStore'
 import { useToast } from '@/store/useToast'
 import { angka, rupiah, tanggalJam } from '@/lib/format'
 import { cetakStruk } from '@/lib/print'
-import { Button, Input, Label, Modal, Select } from '@/components/ui'
+import { Button, CurrencyInput, Input, Label, Modal, Select } from '@/components/ui'
 import { syncService, type SyncStatus } from '@/lib/syncService'
 
 function BukaShift() {
@@ -63,7 +63,7 @@ function BukaShift() {
         </div>
         <div className="mb-4">
           <Label>Saldo kas awal (modal laci)</Label>
-          <Input type="number" value={saldo} onChange={(e) => setSaldo(Number(e.target.value))} />
+          <CurrencyInput value={saldo} onChange={setSaldo} />
         </div>
         <Button className="w-full" size="lg" variant="success" onClick={buka}>
           Buka Shift {shiftNo} Sekarang
@@ -184,6 +184,7 @@ export function KasirPOS() {
   const [recentUpdatedIds, setRecentUpdatedIds] = useState<Set<string>>(new Set())
   const [qrModalOpen, setQrModalOpen] = useState(false)
   const [mobileView, setMobileView] = useState<'catalog' | 'cart'>('catalog')
+  const [varianModalProduk, setVarianModalProduk] = useState<Produk | null>(null)
 
   const openShift = shifts.find((s) => s.kasirId === currentUser?.id && s.status === 'buka') ?? null
 
@@ -266,7 +267,17 @@ export function KasirPOS() {
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur()
     }
-    addToCart(p)
+    if (p.varian && p.varian.length > 0) {
+      setVarianModalProduk(p)
+    } else {
+      addToCart(p)
+    }
+  }
+
+  const pilihVarian = (p: Produk, v: VarianBobot) => {
+    addToCart(p, 1, v)
+    setVarianModalProduk(null)
+    push({ tipe: 'sukses', judul: `${p.nama} (${v.nama})`, pesan: 'Ditambahkan ke keranjang' })
   }
 
   const bukaBayar = () => {
@@ -322,6 +333,9 @@ export function KasirPOS() {
         qty: c.qty,
         diskonItem: c.diskonItem,
         subtotal: Math.max(0, c.hargaJual * c.qty - (c.diskonItem || 0)),
+        varianId: c.varianId,
+        namaVarian: c.namaVarian,
+        bobot: c.bobot,
       })),
       diskonNota,
       metode,
@@ -411,6 +425,7 @@ export function KasirPOS() {
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {grid.map((p) => {
               const isRecent = recentUpdatedIds.has(p.id)
+              const hasVarian = p.varian && p.varian.length > 0
               return (
                 <button
                   key={p.id}
@@ -418,7 +433,9 @@ export function KasirPOS() {
                   className={`flex flex-col rounded-xl border bg-white p-3 text-left transition active:scale-[0.98] ${
                     isRecent
                       ? 'border-amber-400 bg-amber-50/70 ring-2 ring-amber-400 shadow-md animate-pulse'
-                      : 'border-slate-200 hover:border-emerald-400 hover:shadow-md'
+                      : hasVarian
+                        ? 'border-indigo-200 hover:border-indigo-400 hover:shadow-md'
+                        : 'border-slate-200 hover:border-emerald-400 hover:shadow-md'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-1">
@@ -429,7 +446,23 @@ export function KasirPOS() {
                       </span>
                     )}
                   </div>
-                  <p className="mt-1 text-sm font-bold text-emerald-600">{rupiah(p.hargaJual)}</p>
+                  {hasVarian ? (
+                    <>
+                      <div className="mt-1 flex items-center gap-1.5">
+                        <span className="inline-flex items-center rounded bg-indigo-100 px-1.5 py-0.5 text-[9px] font-bold text-indigo-700">
+                          Varian Bobot
+                        </span>
+                        <span className="text-[10px] text-slate-500">
+                          {p.varian!.length} pilihan
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-xs font-semibold text-emerald-600">
+                        {rupiah(Math.min(...p.varian!.map((v) => v.hargaJual)))} – {rupiah(Math.max(...p.varian!.map((v) => v.hargaJual)))}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="mt-1 text-sm font-bold text-emerald-600">{rupiah(p.hargaJual)}</p>
+                  )}
                   <div className="mt-1 flex items-center justify-between">
                     <span className="font-mono text-[10px] text-slate-400">{p.sku}</span>
                     <span
@@ -441,7 +474,7 @@ export function KasirPOS() {
                             : 'text-slate-400'
                       }`}
                     >
-                      stok {p.stok}
+                      stok {p.stok}{hasVarian ? ` ${p.satuan}` : ''}
                     </span>
                   </div>
                 </button>
@@ -502,60 +535,60 @@ export function KasirPOS() {
               <p className="text-xs text-slate-300">Pindai barcode atau pilih produk</p>
             </div>
           ) : (
-            cart.map((c) => (
-              <div key={c.produkId} className="mb-2 rounded-lg border border-slate-100 bg-slate-50/60 p-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-medium text-slate-700">{c.nama}</p>
-                    <p className="text-[11px] text-slate-400">{rupiah(c.hargaJual)} / {c.sku}</p>
+            cart.map((c) => {
+              const itemKey = c.cartItemId || c.produkId
+              return (
+                <div key={itemKey} className="mb-2 rounded-lg border border-slate-100 bg-slate-50/60 p-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-medium text-slate-700">{c.nama}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-[11px] text-slate-400">{rupiah(c.hargaJual)} / {c.sku}</p>
+                        {c.namaVarian && (
+                          <span className="inline-flex items-center rounded bg-indigo-100 px-1 py-0.5 text-[9px] font-semibold text-indigo-700">
+                            {c.namaVarian}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <button onClick={() => removeFromCart(itemKey)} className="shrink-0 text-slate-300 hover:text-rose-500">×</button>
                   </div>
-                  <button onClick={() => removeFromCart(c.produkId)} className="shrink-0 text-slate-300 hover:text-rose-500">×</button>
-                </div>
-                <div className="mt-2 flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => setQty(c.produkId, c.qty - 1)} className="h-7 w-7 rounded-md border border-slate-200 bg-white text-sm font-bold text-slate-600 hover:bg-slate-100">−</button>
-                    <span className="w-8 text-center text-sm font-semibold">{c.qty}</span>
-                    <button onClick={() => setQty(c.produkId, c.qty + 1)} className="h-7 w-7 rounded-md border border-slate-200 bg-white text-sm font-bold text-slate-600 hover:bg-slate-100">+</button>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-[10px] text-slate-400">Pot.</span>
-                    <div className="relative flex items-center">
-                      <span className="pointer-events-none absolute left-1.5 text-[10px] text-slate-400">Rp</span>
-                      <input
-                        type="number"
-                        min="0"
-                        value={c.diskonItem || ''}
-                        onChange={(e) => setDiskonItem(c.produkId, Number(e.target.value))}
-                        placeholder="0"
-                        className="w-20 rounded-md border border-slate-200 pl-6 pr-1.5 py-0.5 text-right text-xs"
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => setQty(itemKey, c.qty - 1)} className="h-7 w-7 rounded-md border border-slate-200 bg-white text-sm font-bold text-slate-600 hover:bg-slate-100">−</button>
+                      <span className="w-8 text-center text-sm font-semibold">{c.qty}</span>
+                      <button onClick={() => setQty(itemKey, c.qty + 1)} className="h-7 w-7 rounded-md border border-slate-200 bg-white text-sm font-bold text-slate-600 hover:bg-slate-100">+</button>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] text-slate-400">Pot.</span>
+                      <CurrencyInput
+                        sizeVariant="sm"
+                        value={c.diskonItem || 0}
+                        onChange={(val) => setDiskonItem(itemKey, val)}
+                        wrapperClassName="w-24"
+                        className="text-right py-0.5 rounded-md border-slate-200"
                       />
                     </div>
+                    <span className="text-sm font-semibold text-slate-700">
+                      {rupiah(Math.max(0, c.hargaJual * c.qty - (c.diskonItem || 0)))}
+                    </span>
                   </div>
-                  <span className="text-sm font-semibold text-slate-700">
-                    {rupiah(Math.max(0, c.hargaJual * c.qty - (c.diskonItem || 0)))}
-                  </span>
                 </div>
-              </div>
-            ))
+              )
+            })
           )}
         </div>
 
         <div className="border-t border-slate-200 p-3">
           <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
             <span>Diskon nota</span>
-            <div className="flex items-center gap-1">
-              <div className="relative flex items-center">
-                <span className="pointer-events-none absolute left-2 text-xs text-slate-400">Rp</span>
-                <input
-                  type="number"
-                  min="0"
-                  value={diskonNota || ''}
-                  onChange={(e) => setDiskonNota(Number(e.target.value))}
-                  placeholder="0"
-                  className="w-28 rounded-md border border-slate-200 pl-7 pr-2 py-0.5 text-right text-xs font-medium"
-                />
-              </div>
-            </div>
+            <CurrencyInput
+              sizeVariant="sm"
+              value={diskonNota}
+              onChange={setDiskonNota}
+              wrapperClassName="w-32"
+              className="text-right py-0.5 font-medium rounded-md border-slate-200"
+            />
           </div>
           <div className="mb-1 flex justify-between text-sm text-slate-500">
             <span>Subtotal</span><span>{rupiah(subtotalKotor)}</span>
@@ -633,10 +666,10 @@ export function KasirPOS() {
             <>
               <div>
                 <Label>Jumlah dibayar</Label>
-                <Input
-                  type="number"
+                <CurrencyInput
+                  sizeVariant="lg"
                   value={dibayar}
-                  onChange={(e) => setDibayar(Number(e.target.value))}
+                  onChange={setDibayar}
                   className="text-lg font-semibold"
                 />
               </div>
@@ -672,6 +705,73 @@ export function KasirPOS() {
         footer={<Button onClick={() => { setStruk(null); focusBarcode() }}>Transaksi Baru</Button>}
       >
         {struk && <StrukView trx={struk} namaKasir={currentUser?.nama ?? ''} />}
+      </Modal>
+
+      {/* Modal Pemilihan Varian Bobot */}
+      <Modal
+        open={!!varianModalProduk}
+        onClose={() => setVarianModalProduk(null)}
+        title={varianModalProduk ? `Pilih Varian — ${varianModalProduk.nama}` : 'Pilih Varian'}
+        lebar="max-w-lg"
+      >
+        {varianModalProduk && (() => {
+          const p = produk.find((x) => x.id === varianModalProduk.id) ?? varianModalProduk
+          return (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between rounded-xl bg-slate-900 px-4 py-3 text-white">
+                <div>
+                  <p className="text-xs text-slate-400">Total Stok Tersedia</p>
+                  <p className="text-2xl font-bold">{angka(p.stok)} <span className="text-sm font-medium text-slate-400">{p.satuan}</span></p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-slate-400">SKU</p>
+                  <p className="font-mono text-sm font-semibold">{p.sku}</p>
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                {p.varian?.map((v) => {
+                  const kuotaBungkus = Math.floor(p.stok / v.bobot)
+                  const disabled = kuotaBungkus <= 0
+                  return (
+                    <button
+                      key={v.id}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => pilihVarian(p, v)}
+                      className={`flex items-center justify-between rounded-xl border-2 px-4 py-3 text-left transition ${
+                        disabled
+                          ? 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-60'
+                          : 'border-slate-200 bg-white hover:border-indigo-500 hover:bg-indigo-50 hover:shadow-md active:scale-[0.98]'
+                      }`}
+                    >
+                      <div>
+                        <p className="text-sm font-bold text-slate-800">{v.nama}</p>
+                        <p className="text-lg font-bold text-emerald-600">{rupiah(v.hargaJual)}</p>
+                      </div>
+                      <div className="text-right">
+                        {disabled ? (
+                          <span className="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-1 text-[11px] font-semibold text-rose-700">
+                            Stok Tidak Cukup
+                          </span>
+                        ) : (
+                          <>
+                            <p className="text-xs text-slate-500">Maks. bisa dibuat</p>
+                            <p className="text-lg font-bold text-indigo-600">{kuotaBungkus} <span className="text-xs font-medium text-slate-500">bungkus</span></p>
+                          </>
+                        )}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+
+              <div className="flex justify-end">
+                <Button variant="secondary" onClick={() => setVarianModalProduk(null)}>Batal</Button>
+              </div>
+            </div>
+          )
+        })()}
       </Modal>
 
       {/* Modal QR Code untuk Multi-Device Demo */}
@@ -725,6 +825,83 @@ export function KasirPOS() {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Modal Pemilihan Varian Bobot */}
+      <Modal
+        open={!!varianModalProduk}
+        onClose={() => setVarianModalProduk(null)}
+        title={`Pilih Ukuran Varian: ${varianModalProduk?.nama || ''}`}
+        lebar="max-w-md"
+      >
+        {varianModalProduk && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+              <div>
+                <p className="text-xs text-slate-500 font-medium">Stok Curah Tersedia</p>
+                <p className="text-lg font-bold text-slate-800">
+                  {varianModalProduk.stok} <span className="text-sm font-normal text-slate-600">{varianModalProduk.satuan}</span>
+                </p>
+              </div>
+              <div className="text-right">
+                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
+                  Shared Pool
+                </span>
+                <p className="text-[10px] text-slate-400 mt-0.5">Potong langsung dari kuota stok</p>
+              </div>
+            </div>
+
+            <p className="text-xs font-semibold text-slate-600">Pilih Varian Kemasan:</p>
+
+            <div className="space-y-2.5">
+              {varianModalProduk.varian?.map((v) => {
+                const maxKemasan = Math.floor(varianModalProduk.stok / v.bobot)
+                const cukup = maxKemasan > 0
+
+                return (
+                  <div
+                    key={v.id}
+                    className={`flex items-center justify-between rounded-xl border p-3.5 transition ${
+                      cukup
+                        ? 'border-slate-200 bg-white hover:border-emerald-400 hover:shadow-xs'
+                        : 'border-slate-200 bg-slate-50/70 opacity-60'
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-800 text-sm">{v.nama}</span>
+                        <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-600">
+                          {v.bobot} {varianModalProduk.satuan}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm font-bold text-emerald-600">{rupiah(v.hargaJual)}</p>
+                      <p className="text-[11px] text-slate-400">
+                        {cukup ? `Tersedia maks. ~${maxKemasan} bungkus` : 'Stok curah tidak cukup'}
+                      </p>
+                    </div>
+
+                    <Button
+                      variant={cukup ? 'primary' : 'secondary'}
+                      disabled={!cukup}
+                      size="sm"
+                      onClick={() => {
+                        addToCart(varianModalProduk, 1, v)
+                        push({
+                          tipe: 'sukses',
+                          judul: `${varianModalProduk.nama} (${v.nama})`,
+                          pesan: 'Ditambahkan ke keranjang',
+                        })
+                        setVarianModalProduk(null)
+                      }}
+                    >
+                      + Pilih
+                    </Button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   )
