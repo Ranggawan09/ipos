@@ -11,7 +11,7 @@ const homeFor = (role: string) =>
 export function Login() {
   const navigate = useNavigate()
   const { users } = useDataStore()
-  const { currentUser, login, selectedShiftNomor, setSelectedShiftNomor } = useSessionStore()
+  const { currentUser, login } = useSessionStore()
   const push = useToast((s) => s.push)
   const [username, setUsername] = useState('admin')
   const [pin, setPin] = useState('')
@@ -20,8 +20,6 @@ export function Login() {
   if (currentUser) return <Navigate to={homeFor(currentUser.role)} replace />
 
   const daftar = users.filter((u) => u.aktif)
-  const targetUser = users.find((x) => x.username.toLowerCase() === username.trim().toLowerCase())
-  const isKasir = targetUser?.role === 'kasir'
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -38,7 +36,7 @@ export function Login() {
     push({
       tipe: 'sukses',
       judul: `Selamat datang, ${u.nama}`,
-      pesan: u.role === 'kasir' ? `Masuk sebagai kasir (Shift ${selectedShiftNomor})` : `Masuk sebagai ${u.role}`,
+      pesan: `Masuk sebagai ${u.role}`,
     })
     navigate(homeFor(u.role), { replace: true })
   }
@@ -99,41 +97,9 @@ export function Login() {
               />
             </div>
 
-            {isKasir && (
-              <div>
-                <div className="mb-1.5 flex items-center justify-between">
-                  <label className="text-xs font-medium text-slate-600">Pilih Shift Kerja</label>
-                  <span className="text-[11px] font-semibold text-emerald-600">Shift {selectedShiftNomor} Terpilih</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {([1, 2] as const).map((s) => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setSelectedShiftNomor(s)}
-                      className={`flex flex-col items-center justify-center border py-2.5 text-xs font-semibold transition ${
-                        selectedShiftNomor === s
-                          ? 'border-emerald-600 bg-emerald-600 text-white shadow-xs'
-                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300 hover:bg-slate-100'
-                      }`}
-                    >
-                      <span>Shift {s}</span>
-                      <span
-                        className={`text-[10px] font-normal ${
-                          selectedShiftNomor === s ? 'text-emerald-100' : 'text-slate-400'
-                        }`}
-                      >
-                        {s === 1 ? 'Pagi (08:00 - 15:00)' : 'Siang / Malam (15:00 - 22:00)'}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
             {error && <p className="rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</p>}
             <Button type="submit" className="w-full" size="lg">
-              {isKasir ? `Masuk (Shift ${selectedShiftNomor})` : 'Masuk'}
+              Masuk
             </Button>
           </form>
 
