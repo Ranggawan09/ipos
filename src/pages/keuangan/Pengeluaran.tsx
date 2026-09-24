@@ -8,6 +8,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { Badge, Button, Card, CurrencyInput, DataTable, FR, Input, Label, Modal, PageHeader, Select, StatCard } from '@/components/ui'
 
 const KATEGORI = [
+  { value: 'operasional_kasir', label: 'Operasional Kasir' },
   { value: 'listrik', label: 'Listrik & air' },
   { value: 'sewa', label: 'Sewa tempat' },
   { value: 'gaji', label: 'Gaji karyawan' },

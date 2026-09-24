@@ -48,18 +48,16 @@ export function Supplier() {
         deskripsi="Kelola data pemasok barang ke toko, penetapan produk yang dipasok, dan rekomendasi restock saat stok menipis."
         aksi={
           <div className="flex items-center gap-2">
-            {totalBarangKritis > 0 && (
-              <Button
-                variant="secondary"
-                className="border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
-                onClick={() => {
-                  setTargetRestockSupplierId(null)
-                  setModalRestock(true)
-                }}
-              >
-                Rekomendasi Restock ({totalBarangKritis})
-              </Button>
-            )}
+            <Button
+              variant="secondary"
+              className={totalBarangKritis > 0 ? 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 font-medium' : ''}
+              onClick={() => {
+                setTargetRestockSupplierId(null)
+                setModalRestock(true)
+              }}
+            >
+              Restock & PO {totalBarangKritis > 0 ? `(${totalBarangKritis})` : ''}
+            </Button>
             <Button
               onClick={() => {
                 setEdit(null)
@@ -163,20 +161,26 @@ export function Supplier() {
                     >
                       Kelola Barang ({prods.length})
                     </Button>
-                    {kritis > 0 && (
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 text-xs font-semibold"
-                        onClick={() => {
-                          setTargetRestockSupplierId(s.id)
-                          setModalRestock(true)
-                        }}
-                        title="Buat PO Restock untuk barang supplier ini yang menipis"
-                      >
-                        Restock ({kritis})
-                      </Button>
-                    )}
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className={
+                        kritis > 0
+                          ? 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 text-xs font-semibold'
+                          : 'text-xs'
+                      }
+                      onClick={() => {
+                        setTargetRestockSupplierId(s.id)
+                        setModalRestock(true)
+                      }}
+                      title={
+                        kritis > 0
+                          ? 'Buat PO Restock untuk barang supplier ini yang menipis'
+                          : 'Restock manual / buat PO untuk supplier ini'
+                      }
+                    >
+                      Restock {kritis > 0 ? `(${kritis})` : ''}
+                    </Button>
                     <Button
                       size="sm"
                       variant="ghost"

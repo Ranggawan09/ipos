@@ -1,8 +1,10 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type {
+  BarangKeluar,
   HutangSupplier,
   Kategori,
+  KategoriBarangKeluar,
   LogSinkron,
   PenerimaanBarang,
   Pengemasan,
@@ -10,12 +12,14 @@ import type {
   Pengeluaran,
   Produk,
   ResepKonversi,
+  ResolusiRetur,
   Shift,
   Supplier,
   Transaksi,
   User,
 } from '@/types'
 import {
+  buildBarangKeluar,
   buildHutang,
   buildPenerimaan,
   buildPengeluaran,
@@ -41,6 +45,28 @@ const { shifts: initialShifts, transaksi: initialTransaksi, pergerakan: initialP
   buildShiftDanTransaksi(initialProduk)
 const initialResep = buildResepKonversi(initialProduk)
 const initialPengemasan = buildPengemasan(initialProduk, initialResep)
+const initialBarangKeluar = buildBarangKeluar(initialProduk, SUPPLIER_SEED)
+
+export const DEFAULT_SATUAN = [
+  'pcs',
+  'kg',
+  'liter',
+  'gram',
+  'ml',
+  'karton',
+  'dus',
+  'pax',
+  'renceng',
+  'sak',
+  'pack',
+  'lembar',
+  'bungkus',
+  'botol',
+  'kaleng',
+  'sachet',
+  'lusin',
+  'kodi',
+]
 
 export type DataState = {
   users: User[]
@@ -56,6 +82,11 @@ export type DataState = {
   logSinkron: LogSinkron[]
   resepKonversi: ResepKonversi[]
   pengemasan: Pengemasan[]
+  daftarSatuan: string[]
+  daftarBarangKeluar: BarangKeluar[]
+
+  // Kamus Satuan
+  tambahSatuanKamus: (satuan: string) => void
 
   // Inventory
   simpanProduk: (p: Omit<Produk, 'id'> & { id?: string }) => Produk
@@ -66,7 +97,15 @@ export type DataState = {
   hapusSupplier: (id: string) => void
   terimaBarang: (input: {
     supplierId: string
-    items: { produkId: string; qty: number; hargaBeli: number }[]
+    items: {
+      produkId: string
+      qty: number
+      hargaBeli: number
+      satuan?: string
+      satuanId?: string
+      multiplier?: number
+      tglExpired?: string
+    }[]
     metode: 'tunai' | 'kredit'
     jatuhTempo?: string
     userId: string
@@ -78,6 +117,25 @@ export type DataState = {
     keterangan: string
     userId: string
   }) => void
+  catatBarangKeluarBaru: (input: {
+    kategori: KategoriBarangKeluar
+    supplierId?: string
+    items: {
+      produkId: string
+      qty: number
+      satuan: string
+      alasan?: string
+    }[]
+    catatan?: string
+    userId: string
+  }) => BarangKeluar
+  selesaikanReturBarang: (input: {
+    id: string
+    resolusi: ResolusiRetur
+    catatan?: string
+    userId: string
+  }) => void
+  hapusBarangKeluar: (id: string) => void
   stockOpname: (input: { produkId: string; stokFisik: number; userId: string }) => void
   importProduk: (rows: (Omit<Produk, 'id'> & { id?: string })[]) => number
 
@@ -112,7 +170,7 @@ export type DataState = {
   }) => void
 
   // Keuangan
-  simpanPengeluaran: (p: Omit<Pengeluaran, 'id'> & { id?: string }) => void
+  simpanPengeluaran: (p: Omit<Pengeluaran, 'id'> & { id?: string }) => Pengeluaran
   hapusPengeluaran: (id: string) => void
   lunasiHutang: (id: string) => void
 
@@ -146,6 +204,8 @@ function freshData() {
     ],
     resepKonversi: structuredClone(initialResep),
     pengemasan: structuredClone(initialPengemasan),
+    daftarSatuan: [...DEFAULT_SATUAN],
+    daftarBarangKeluar: structuredClone(initialBarangKeluar),
   }
 }
 
@@ -153,6 +213,15 @@ export const useDataStore = create<DataState>()(
   persist(
     (set, get) => ({
       ...freshData(),
+
+      tambahSatuanKamus: (satuan) => {
+        const s = satuan.trim().toLowerCase()
+        if (!s) return
+        const current = get().daftarSatuan || DEFAULT_SATUAN
+        if (!current.includes(s)) {
+          set({ daftarSatuan: [...current, s] })
+        }
+      },
 
       simpanProduk: (p) => {
         const list = get().produk
@@ -207,16 +276,29 @@ export const useDataStore = create<DataState>()(
         items.forEach((item, idx) => {
           const p = produksBaru.find((x) => x.id === item.produkId)
           if (!p) return
+          const mult = item.multiplier || 1
+          const stokMasuk = item.qty * mult
           const sebelum = p.stok
-          p.stok = sebelum + item.qty
+          p.stok = sebelum + stokMasuk
+
+          if (item.tglExpired) {
+            p.tglExpired = item.tglExpired
+          }
+
+          const satuanKet = item.satuan && item.satuan !== p.satuan
+            ? `${item.qty} ${item.satuan} (${stokMasuk} ${p.satuan || 'pcs'})`
+            : `${stokMasuk} ${p.satuan || 'pcs'}`
+
+          const expKet = item.tglExpired ? ` [Exp: ${item.tglExpired}]` : ''
+
           pergerakanBaru.push({
             id: `MOV-IN-${Date.now()}-${idx}`,
             produkId: p.id,
             jenis: 'masuk',
-            jumlah: item.qty,
+            jumlah: stokMasuk,
             stokSebelum: sebelum,
             stokSesudah: p.stok,
-            keterangan: 'Penerimaan barang dari supplier',
+            keterangan: `Penerimaan barang dari supplier: ${satuanKet}${expKet}`,
             userId,
             waktu: now,
           })
@@ -230,7 +312,18 @@ export const useDataStore = create<DataState>()(
           supplierId,
           items: items.map((i) => {
             const p = produks.find((x) => x.id === i.produkId)!
-            return { produkId: i.produkId, namaProduk: p?.nama ?? '-', qty: i.qty, hargaBeli: i.hargaBeli }
+            const mult = i.multiplier || 1
+            return {
+              produkId: i.produkId,
+              namaProduk: p?.nama ?? '-',
+              qty: i.qty,
+              hargaBeli: i.hargaBeli,
+              satuan: i.satuan || p?.satuan || 'pcs',
+              satuanId: i.satuanId,
+              multiplier: mult,
+              jumlahStokMasuk: i.qty * mult,
+              tglExpired: i.tglExpired,
+            }
           }),
           total,
           metode,
@@ -283,6 +376,198 @@ export const useDataStore = create<DataState>()(
           [{ produkId, namaProduk: p.nama, qty: jumlah, sisaStok: p.stok }],
           'Gudang / Keluar',
         )
+      },
+
+      catatBarangKeluarBaru: (input) => {
+        const produks = get().produk.map((p) => ({ ...p }))
+        const pergerakanBaru: PergerakanStok[] = []
+        const now = new Date().toISOString()
+        const yyyymm = `${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}`
+        const count = (get().daftarBarangKeluar || []).length + 1
+        const nomor = `BK-${yyyymm}-${String(count).padStart(4, '0')}`
+        const id = `BK-${Date.now()}`
+
+        const detailedItems = []
+        const broadcastItems = []
+
+        for (const itemInput of input.items) {
+          const p = produks.find((x) => x.id === itemInput.produkId)
+          if (!p) continue
+
+          const qty = Number(itemInput.qty) || 0
+          const hargaBeli = p.hargaBeli || 0
+          const subtotal = hargaBeli * qty
+          const stokSebelum = p.stok
+          p.stok = Math.max(0, stokSebelum - qty)
+
+          detailedItems.push({
+            produkId: p.id,
+            namaProduk: p.nama,
+            sku: p.sku,
+            qty,
+            satuan: itemInput.satuan || p.satuan,
+            hargaBeli,
+            subtotal,
+            alasan: itemInput.alasan || '',
+          })
+
+          const jenisMov = input.kategori === 'cacat' ? ('keluar_rusak' as const) : ('retur_supplier' as const)
+          const ketMov =
+            input.kategori === 'cacat'
+              ? `Barang cacat/rusak (${nomor}): ${itemInput.alasan || p.nama}`
+              : `Retur barang ke supplier (${nomor}): ${itemInput.alasan || p.nama}`
+
+          pergerakanBaru.push({
+            id: `MOV-BK-${Date.now()}-${p.id}`,
+            produkId: p.id,
+            jenis: jenisMov,
+            jumlah: -qty,
+            stokSebelum,
+            stokSesudah: p.stok,
+            keterangan: ketMov,
+            userId: input.userId,
+            waktu: now,
+          })
+
+          broadcastItems.push({
+            produkId: p.id,
+            namaProduk: p.nama,
+            qty,
+            sisaStok: p.stok,
+          })
+        }
+
+        const totalNilai = detailedItems.reduce((acc, item) => acc + item.subtotal, 0)
+        let pengeluaranId: string | undefined = undefined
+
+        // Kategori CACAT: otomatis catat ke pengeluaran toko
+        if (input.kategori === 'cacat' && totalNilai > 0) {
+          const ringkasanItem = detailedItems.map((it) => `${it.namaProduk} (${it.qty} ${it.satuan})`).join(', ')
+          const savedExp = get().simpanPengeluaran({
+            kategori: 'operasional_kasir',
+            keterangan: `Barang Cacat/Rusak (${nomor}): ${ringkasanItem}`,
+            jumlah: totalNilai,
+            tanggal: now,
+            userId: input.userId,
+            items: detailedItems.map((it) => ({
+              nama: it.namaProduk,
+              qty: it.qty,
+              harga: it.hargaBeli,
+              subtotal: it.subtotal,
+            })),
+          })
+          pengeluaranId = savedExp.id
+        }
+
+        const record = {
+          id,
+          nomor,
+          kategori: input.kategori,
+          supplierId: input.supplierId,
+          items: detailedItems,
+          totalNilai,
+          status: input.kategori === 'cacat' ? ('selesai' as const) : ('proses_retur' as const),
+          tanggalKeluar: now,
+          pengeluaranId,
+          userId: input.userId,
+          catatan: input.catatan,
+        }
+
+        set({
+          produk: produks,
+          pergerakan: [...pergerakanBaru, ...get().pergerakan],
+          daftarBarangKeluar: [record, ...(get().daftarBarangKeluar || [])],
+        })
+
+        if (broadcastItems.length > 0) {
+          syncService.broadcastStockMutation(
+            broadcastItems,
+            input.kategori === 'cacat' ? 'Barang Cacat/Rusak' : 'Retur Supplier',
+          )
+        }
+
+        return record
+      },
+
+      selesaikanReturBarang: (input) => {
+        const currentList = get().daftarBarangKeluar || []
+        const target = currentList.find((x) => x.id === input.id)
+        if (!target || target.status === 'selesai_retur') return
+
+        const now = new Date().toISOString()
+        const produks = get().produk.map((p) => ({ ...p }))
+        const pergerakanBaru: PergerakanStok[] = []
+        const broadcastItems = []
+
+        // Jika resolusi 'ganti_barang', stok produk kembali bertambah ke toko
+        if (input.resolusi === 'ganti_barang') {
+          for (const item of target.items) {
+            const p = produks.find((x) => x.id === item.produkId)
+            if (!p) continue
+
+            const stokSebelum = p.stok
+            p.stok = stokSebelum + item.qty
+
+            pergerakanBaru.push({
+              id: `MOV-RET-IN-${Date.now()}-${p.id}`,
+              produkId: p.id,
+              jenis: 'masuk',
+              jumlah: item.qty,
+              stokSebelum,
+              stokSesudah: p.stok,
+              keterangan: `Penggantian barang retur selesai (${target.nomor}): ${item.namaProduk} (+${item.qty} ${item.satuan})`,
+              userId: input.userId,
+              waktu: now,
+            })
+
+            broadcastItems.push({
+              produkId: p.id,
+              namaProduk: p.nama,
+              qty: -item.qty,
+              sisaStok: p.stok,
+            })
+          }
+        } else if (input.resolusi === 'potong_hutang' && target.supplierId) {
+          const hutangList = get().hutang.map((h) => ({ ...h }))
+          const activeDebt = hutangList.find(
+            (h) => h.supplierId === target.supplierId && h.status !== 'lunas' && h.sisa > 0,
+          )
+          if (activeDebt) {
+            const potong = Math.min(activeDebt.sisa, target.totalNilai)
+            activeDebt.sisa -= potong
+            if (activeDebt.sisa <= 0) {
+              activeDebt.status = 'lunas'
+            }
+            set({ hutang: hutangList })
+          }
+        }
+
+        const updatedRecord = {
+          ...target,
+          status: 'selesai_retur' as const,
+          resolusiRetur: input.resolusi,
+          tanggalSelesai: now,
+          catatan: input.catatan ? `${target.catatan || ''} | Selesai: ${input.catatan}` : target.catatan,
+        }
+
+        set({
+          produk: produks,
+          pergerakan: [...pergerakanBaru, ...get().pergerakan],
+          daftarBarangKeluar: currentList.map((x) => (x.id === input.id ? updatedRecord : x)),
+        })
+
+        if (broadcastItems.length > 0) {
+          syncService.broadcastStockMutation(broadcastItems, 'Penggantian Retur Selesai')
+        }
+      },
+
+      hapusBarangKeluar: (id) => {
+        const list = get().daftarBarangKeluar || []
+        const target = list.find((x) => x.id === id)
+        if (target && target.pengeluaranId) {
+          get().hapusPengeluaran(target.pengeluaranId)
+        }
+        set({ daftarBarangKeluar: list.filter((x) => x.id !== id) })
       },
 
       stockOpname: ({ produkId, stokFisik, userId }) => {
@@ -454,6 +739,7 @@ export const useDataStore = create<DataState>()(
           totalPenjualan: 0,
           totalTunai: 0,
           totalNonTunai: 0,
+          totalPengeluaran: 0,
           jumlahTransaksi: 0,
           status: 'buka',
         }
@@ -627,16 +913,47 @@ export const useDataStore = create<DataState>()(
 
       simpanPengeluaran: (p) => {
         const list = get().pengeluaran
-        if (p.id) set({ pengeluaran: list.map((x) => (x.id === p.id ? (p as Pengeluaran) : x)) })
-        else
+        let saved: Pengeluaran
+        let nextList: Pengeluaran[]
+        if (p.id) {
+          saved = p as Pengeluaran
+          nextList = list.map((x) => (x.id === p.id ? saved : x))
+        } else {
+          saved = { ...(p as Pengeluaran), id: `EXP-${Date.now()}` }
+          nextList = [saved, ...list]
+        }
+        set({ pengeluaran: nextList })
+
+        if (saved.shiftId) {
+          const sId = saved.shiftId
+          const totalExp = nextList
+            .filter((x) => x.shiftId === sId)
+            .reduce((sum, item) => sum + item.jumlah, 0)
           set({
-            pengeluaran: [
-              { ...(p as Pengeluaran), id: `EXP-${Date.now()}` },
-              ...list,
-            ],
+            shifts: get().shifts.map((s) =>
+              s.id === sId ? { ...s, totalPengeluaran: totalExp } : s,
+            ),
           })
+        }
+        return saved
       },
-      hapusPengeluaran: (id) => set({ pengeluaran: get().pengeluaran.filter((p) => p.id !== id) }),
+      hapusPengeluaran: (id) => {
+        const target = get().pengeluaran.find((p) => p.id === id)
+        const nextList = get().pengeluaran.filter((p) => p.id !== id)
+        set({ pengeluaran: nextList })
+
+        if (target?.shiftId) {
+          const sId = target.shiftId
+          const totalExp = nextList
+            .filter((x) => x.shiftId === sId)
+            .reduce((sum, item) => sum + item.jumlah, 0)
+          set({
+            shifts: get().shifts.map((s) =>
+              s.id === sId ? { ...s, totalPengeluaran: totalExp } : s,
+            ),
+          })
+        }
+      },
 
       lunasiHutang: (id) => {
         set({
@@ -654,6 +971,17 @@ export const useDataStore = create<DataState>()(
       storage: createJSONStorage(() => localStorage),
       onRehydrateStorage: () => (state) => {
         if (state) {
+          if (!state.daftarBarangKeluar || state.daftarBarangKeluar.length === 0) {
+            state.daftarBarangKeluar = buildBarangKeluar(state.produk || initialProduk, state.supplier || SUPPLIER_SEED)
+          }
+          if (!state.daftarSatuan || state.daftarSatuan.length === 0) {
+            state.daftarSatuan = [...DEFAULT_SATUAN]
+          } else {
+            // Gabungkan jika ada default yang belum masuk
+            const setS = new Set([...DEFAULT_SATUAN, ...state.daftarSatuan])
+            state.daftarSatuan = Array.from(setS)
+          }
+
           const beras = state.produk.find((p) => p.nama === 'Beras Rojolele Curah')
           if (beras && (!beras.varian || beras.varian.length === 0)) {
             beras.satuan = 'kg'
@@ -664,16 +992,58 @@ export const useDataStore = create<DataState>()(
             ]
             if (beras.stok <= 0) beras.stok = 50
           }
+
+          const kopi = state.produk.find((p) => p.nama === 'Kopi Sachet')
+          if (kopi && (!kopi.satuanBertingkat || kopi.satuanBertingkat.length === 0)) {
+            kopi.satuan = 'pcs'
+            kopi.hargaBeli = 1000
+            kopi.hargaJual = 1500
+            kopi.stok = 600
+            kopi.satuanBertingkat = [
+              {
+                id: 'STB-KP-1',
+                namaSatuan: 'renceng',
+                satuanTurunan: 'pcs',
+                isi: 12,
+                multiplierToBase: 12,
+                hargaBeli: 12000,
+                marginPersen: 25,
+                hargaJual: 15000,
+              },
+              {
+                id: 'STB-KP-2',
+                namaSatuan: 'pax',
+                satuanTurunan: 'renceng',
+                isi: 6,
+                multiplierToBase: 72,
+                hargaBeli: 72000,
+                marginPersen: 20,
+                hargaJual: 86400,
+              },
+              {
+                id: 'STB-KP-3',
+                namaSatuan: 'karton',
+                satuanTurunan: 'pax',
+                isi: 8,
+                multiplierToBase: 576,
+                hargaBeli: 576000,
+                marginPersen: 15,
+                hargaJual: 662400,
+              },
+            ]
+          }
         }
       },
       partialize: (s) => {
         const {
           users, kategori, supplier, produk, pergerakan, transaksi, shifts,
           pengeluaran, hutang, penerimaan, logSinkron, resepKonversi, pengemasan,
+          daftarSatuan, daftarBarangKeluar,
         } = s
         return {
           users, kategori, supplier, produk, pergerakan, transaksi, shifts,
           pengeluaran, hutang, penerimaan, logSinkron, resepKonversi, pengemasan,
+          daftarSatuan, daftarBarangKeluar,
         } as DataState
       },
     },

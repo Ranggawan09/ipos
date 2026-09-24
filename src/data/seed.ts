@@ -1,4 +1,5 @@
 import type {
+  BarangKeluar,
   HutangSupplier,
   Kategori,
   MetodePembayaran,
@@ -229,6 +230,9 @@ export function buildProduk(): Produk[] {
         stok,
         stokMinimum: stokMin,
         aktif: true,
+        tglExpired: ['KAT-01', 'KAT-02', 'KAT-03', 'KAT-04'].includes(kat.id)
+          ? isoDaysAgo(-int(60, 360)).split('T')[0]
+          : undefined,
       }
 
       // Produk varian bobot: Beras Rojolele Curah
@@ -300,6 +304,7 @@ export function buildShiftDanTransaksi(produk: Produk[]) {
             hargaSatuan: p.hargaJual,
             hargaBeli: p.hargaBeli,
             qty,
+            satuan: p.satuan || 'pcs',
             diskonItem,
             subtotal: subtotalItem,
           })
@@ -422,7 +427,13 @@ export function buildPenerimaan(produk: Produk[]): PenerimaanBarang[] {
     for (let j = 0; j < nItem; j++) {
       const p = pick(produk)
       const qty = int(5, 40)
-      items.push({ produkId: p.id, namaProduk: p.nama, qty, hargaBeli: p.hargaBeli })
+      items.push({
+        produkId: p.id,
+        namaProduk: p.nama,
+        qty,
+        hargaBeli: p.hargaBeli,
+        tglExpired: p.tglExpired || isoDaysAgo(-int(90, 365)).split('T')[0],
+      })
       total += p.hargaBeli * qty
     }
     const kredit = rnd() < 0.3
@@ -599,3 +610,94 @@ export function buildPengemasan(produk: Produk[], resep: ResepKonversi[]): TPeng
   })
   return list
 }
+
+export function buildBarangKeluar(produk: Produk[], suppliers: Supplier[]): BarangKeluar[] {
+  const p1 = produk.find((p) => p.kategoriId === 'KAT-02') || produk[0]
+  const p2 = produk.find((p) => p.kategoriId === 'KAT-03') || produk[1]
+  const p3 = produk.find((p) => p.kategoriId === 'KAT-04') || produk[2]
+  const s1 = suppliers[0] || SUPPLIER_SEED[0]
+  const s2 = suppliers[1] || SUPPLIER_SEED[1]
+
+  const items1 = [
+    {
+      produkId: p1.id,
+      namaProduk: p1.nama,
+      sku: p1.sku,
+      qty: 4,
+      satuan: p1.satuan,
+      hargaBeli: p1.hargaBeli,
+      subtotal: p1.hargaBeli * 4,
+      alasan: 'Kemasan kaleng penyok & bocor',
+    },
+  ]
+  const total1 = items1.reduce((sum, it) => sum + it.subtotal, 0)
+
+  const items2 = [
+    {
+      produkId: p2.id,
+      namaProduk: p2.nama,
+      sku: p2.sku,
+      qty: 6,
+      satuan: p2.satuan,
+      hargaBeli: p2.hargaBeli,
+      subtotal: p2.hargaBeli * 6,
+      alasan: 'Kemasan rusak dari pabrik/segel robek',
+    },
+  ]
+  const total2 = items2.reduce((sum, it) => sum + it.subtotal, 0)
+
+  const items3 = [
+    {
+      produkId: p3.id,
+      namaProduk: p3.nama,
+      sku: p3.sku,
+      qty: 5,
+      satuan: p3.satuan,
+      hargaBeli: p3.hargaBeli,
+      subtotal: p3.hargaBeli * 5,
+      alasan: 'Kedaluwarsa sebelum terjual',
+    },
+  ]
+  const total3 = items3.reduce((sum, it) => sum + it.subtotal, 0)
+
+  return [
+    {
+      id: 'BK-0001',
+      nomor: 'BK-202609-0001',
+      kategori: 'cacat',
+      items: items1,
+      totalNilai: total1,
+      status: 'selesai',
+      tanggalKeluar: isoDaysAgo(4, 14, 20),
+      userId: 'USR-01',
+      catatan: 'Barang rusak di rak display, dicatat ke pengeluaran',
+    },
+    {
+      id: 'BK-0002',
+      nomor: 'BK-202609-0002',
+      kategori: 'retur',
+      supplierId: s1.id,
+      items: items2,
+      totalNilai: total2,
+      status: 'proses_retur',
+      tanggalKeluar: isoDaysAgo(2, 10, 15),
+      userId: 'USR-01',
+      catatan: `Menunggu penggantian fisik saat salesman ${s1.nama} datang`,
+    },
+    {
+      id: 'BK-0003',
+      nomor: 'BK-202609-0003',
+      kategori: 'retur',
+      supplierId: s2.id,
+      items: items3,
+      totalNilai: total3,
+      status: 'selesai_retur',
+      resolusiRetur: 'ganti_barang',
+      tanggalKeluar: isoDaysAgo(8, 9, 30),
+      tanggalSelesai: isoDaysAgo(6, 11, 0),
+      userId: 'USR-01',
+      catatan: `Sudah diganti barang baru oleh ${s2.nama}`,
+    },
+  ]
+}
+

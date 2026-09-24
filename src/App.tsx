@@ -13,11 +13,13 @@ import { Produk } from '@/pages/inventory/Produk'
 import { Kategori } from '@/pages/inventory/Kategori'
 import { Supplier } from '@/pages/inventory/Supplier'
 import { BarangMasuk } from '@/pages/inventory/BarangMasuk'
+import { BarangKeluar } from '@/pages/inventory/BarangKeluar'
 import { StockOpname } from '@/pages/inventory/StockOpname'
 import { RiwayatStok } from '@/pages/inventory/RiwayatStok'
 import { ImportProduk } from '@/pages/inventory/ImportProduk'
 
 import { KasirPOS } from '@/pages/pos/Kasir'
+import { PengeluaranKasir } from '@/pages/pos/PengeluaranKasir'
 import { RiwayatKasir } from '@/pages/pos/RiwayatKasir'
 import { ShiftPage } from '@/pages/pos/Shift'
 
@@ -50,7 +52,7 @@ export default function App() {
           <Route path="kategori" element={<Kategori />} />
           <Route path="supplier" element={<Supplier />} />
           <Route path="barang-masuk" element={<BarangMasuk />} />
-          <Route path="barang-keluar" element={<Navigate to="/admin/riwayat-stok" replace />} />
+          <Route path="barang-keluar" element={<BarangKeluar />} />
           <Route path="stock-opname" element={<StockOpname />} />
           <Route path="riwayat-stok" element={<RiwayatStok />} />
           <Route path="import" element={<ImportProduk />} />
@@ -77,6 +79,7 @@ export default function App() {
           }
         >
           <Route index element={<KasirPOS />} />
+          <Route path="pengeluaran" element={<PengeluaranKasir />} />
           <Route path="riwayat" element={<RiwayatKasir />} />
           <Route path="shift" element={<ShiftPage />} />
         </Route>

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import type { Produk, User, VarianBobot } from '@/types'
+import type { Produk, SatuanBertingkat, User, VarianBobot } from '@/types'
 import { useDataStore } from './useDataStore'
 
 export type CartItem = {
@@ -11,6 +11,9 @@ export type CartItem = {
   hargaJual: number
   hargaBeli: number
   qty: number
+  satuan?: string
+  satuanId?: string
+  multiplier?: number
   diskonItem: number
   stokTersedia: number
   varianId?: string
@@ -48,7 +51,7 @@ type SessionState = {
   setSelectedShiftNomor: (nomor: 1 | 2) => void
   setOffline: (v: boolean) => void
 
-  addToCart: (p: Produk, qty?: number, varian?: VarianBobot) => void
+  addToCart: (p: Produk, qty?: number, varian?: VarianBobot, satuanBertingkat?: SatuanBertingkat) => void
   setQty: (itemKey: string, qty: number) => void
   setDiskonItem: (itemKey: string, diskon: number) => void
   removeFromCart: (itemKey: string) => void
@@ -83,15 +86,50 @@ export const useSessionStore = create<SessionState>()(
       setSelectedShiftNomor: (nomor) => set({ selectedShiftNomor: nomor }),
       setOffline: (v) => set({ offlineMode: v }),
 
-      addToCart: (p, qty = 1, varian) => {
+      addToCart: (p, qty = 1, varian, satuanBertingkat) => {
         const cart = [...get().cart]
-        const cartItemId = varian ? `${p.id}-${varian.id}` : p.id
+        const cartItemId = satuanBertingkat
+          ? `${p.id}-satuan-${satuanBertingkat.id}`
+          : varian
+          ? `${p.id}-${varian.id}`
+          : p.id
         const ada = cart.find((c) => matchItem(c, cartItemId))
 
-        const stokTersedia = varian ? Math.floor(p.stok / varian.bobot) : p.stok
-        const hargaJual = varian ? varian.hargaJual : p.hargaJual
-        const hargaBeli = varian ? Math.round(p.hargaBeli * varian.bobot) : p.hargaBeli
-        const nama = varian ? `${p.nama} (${varian.nama})` : p.nama
+        const stokTersedia = satuanBertingkat
+          ? Math.floor(p.stok / satuanBertingkat.multiplierToBase)
+          : varian
+          ? Math.floor(p.stok / varian.bobot)
+          : p.stok
+
+        const hargaJual = satuanBertingkat
+          ? satuanBertingkat.hargaJual
+          : varian
+          ? varian.hargaJual
+          : p.hargaJual
+
+        const hargaBeli = satuanBertingkat
+          ? satuanBertingkat.hargaBeli
+          : varian
+          ? Math.round(p.hargaBeli * varian.bobot)
+          : p.hargaBeli
+
+        const nama = satuanBertingkat
+          ? `${p.nama} (${satuanBertingkat.namaSatuan})`
+          : varian
+          ? `${p.nama} (${varian.nama})`
+          : p.nama
+
+        const satuan = satuanBertingkat
+          ? satuanBertingkat.namaSatuan
+          : varian
+          ? 'pcs'
+          : p.satuan || 'pcs'
+
+        const bobot = satuanBertingkat
+          ? satuanBertingkat.multiplierToBase
+          : varian
+          ? varian.bobot
+          : undefined
 
         if (ada) {
           ada.qty = Math.min(ada.stokTersedia, ada.qty + qty)
@@ -104,11 +142,14 @@ export const useSessionStore = create<SessionState>()(
             hargaJual,
             hargaBeli,
             qty: Math.min(stokTersedia, qty),
+            satuan,
+            satuanId: satuanBertingkat?.id,
+            multiplier: satuanBertingkat?.multiplierToBase,
             diskonItem: 0,
             stokTersedia,
             varianId: varian?.id,
             namaVarian: varian?.nama,
-            bobot: varian?.bobot,
+            bobot,
           })
         }
         set({ cart })
@@ -162,6 +203,7 @@ export const useSessionStore = create<SessionState>()(
                 hargaSatuan: c.hargaJual,
                 hargaBeli: c.hargaBeli,
                 qty: c.qty,
+                satuan: c.satuan || 'pcs',
                 diskonItem: c.diskonItem,
                 subtotal,
                 varianId: c.varianId,

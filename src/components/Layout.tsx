@@ -9,7 +9,7 @@ const ICONS: Record<string, string> = {
   tag: 'M20.6 13.4 12 22l-9-9V3h10l7.6 7.6a2 2 0 0 1 0 2.8zM7 7h.01',
   truck: 'M1 3h15v13H1zM16 8h4l3 3v5h-7M5.5 20.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM18.5 20.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z',
   inbox: 'M22 12h-6l-2 3h-4l-2-3H2M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z',
-  outbox: 'M22 12h-6l-2 3h-4l-2-3H2M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z',
+  outbox: 'M22 12h-6l-2 3h-4l-2-3H2M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11zM12 10V2M8 6l4-4 4 4',
   clip: 'M9 2h6a1 1 0 0 1 1 1v2H8V3a1 1 0 0 1 1-1zM6 4h12v18H6zM9 11h6M9 15h4',
   history: 'M3 3v5h5M3.05 13A9 9 0 1 0 6 5.3L3 8M12 7v5l4 2',
   users: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
@@ -57,6 +57,7 @@ const ADMIN_NAV: NavGroup[] = [
       { to: '/admin/kategori', label: 'Kategori', icon: 'tag' },
       { to: '/admin/supplier', label: 'Supplier', icon: 'truck' },
       { to: '/admin/barang-masuk', label: 'Barang Masuk', icon: 'inbox' },
+      { to: '/admin/barang-keluar', label: 'Barang Keluar', icon: 'outbox' },
       { to: '/admin/stock-opname', label: 'Stock Opname', icon: 'clip' },
       { to: '/admin/riwayat-stok', label: 'Riwayat Stok', icon: 'history' },
       { to: '/admin/import', label: 'Import Produk', icon: 'upload' },
@@ -171,6 +172,7 @@ export function AdminLayout() {
 
 const KASIR_NAV: NavItem[] = [
   { to: '/kasir', label: 'Kasir', icon: 'cart' },
+  { to: '/kasir/pengeluaran', label: 'Pengeluaran', icon: 'wallet' },
   { to: '/kasir/riwayat', label: 'Riwayat', icon: 'receipt' },
   { to: '/kasir/shift', label: 'Shift', icon: 'clock' },
 ]

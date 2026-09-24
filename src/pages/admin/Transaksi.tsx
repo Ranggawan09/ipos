@@ -31,7 +31,7 @@ const getHariIni = () => {
 }
 
 export function TransaksiAdmin() {
-  const { transaksi, users, shifts, voidTransaksi } = useDataStore()
+  const { transaksi, users, shifts, voidTransaksi, produk } = useDataStore()
   const currentUser = useSessionStore((s) => s.currentUser)
   const isOwner = currentUser?.role === 'owner'
   const push = useToast((s) => s.push)
@@ -304,19 +304,26 @@ export function TransaksiAdmin() {
                   const subtotalKotor = detail.detail.reduce((a, d) => a + d.qty * d.hargaSatuan, 0)
                   const totalDiskonItem = detail.detail.reduce((a, d) => a + (d.diskonItem || 0), 0)
                   const diskonNota = detail.diskonNominal || 0
+                  const totalItem = detail.detail.reduce((a, d) => a + d.qty, 0)
                   cetakStruk({
                     namaToko: 'TOKO PASAR JAYA',
                     alamat: 'Pasar Induk Blok A No. 12, Jakarta',
                     nomor: detail.nomor,
                     waktu: tanggalJam(detail.waktu),
                     kasir: namaKasir(detail.kasirId),
-                    items: detail.detail.map((d) => ({
-                      nama: d.namaProduk,
-                      qty: d.qty,
-                      harga: d.hargaSatuan,
-                      diskonItem: d.diskonItem,
-                      subtotal: d.subtotal,
-                    })),
+                    items: detail.detail.map((d) => {
+                      const p = produk.find((x) => x.id === d.produkId)
+                      const satuan = d.satuan || (d.varianId ? 'pcs' : (p?.satuan || 'pcs'))
+                      return {
+                        nama: d.namaProduk,
+                        qty: d.qty,
+                        satuan,
+                        harga: d.hargaSatuan,
+                        diskonItem: d.diskonItem,
+                        subtotal: d.subtotal,
+                      }
+                    }),
+                    totalItem,
                     subtotal: subtotalKotor,
                     diskonItem: totalDiskonItem,
                     diskonNota,
@@ -373,7 +380,9 @@ export function TransaksiAdmin() {
                     <tr key={d.id} className="border-t border-slate-100">
                       <td className="px-3 py-2">{d.namaProduk}<span className="ml-2 font-mono text-[10px] text-slate-400">{d.sku}</span></td>
                       <td className="px-3 py-2 text-right">{rupiah(d.hargaSatuan)}</td>
-                      <td className="px-3 py-2 text-right">{d.qty}</td>
+                      <td className="px-3 py-2 text-right">
+                        {d.qty} {d.satuan || (d.varianId ? 'pcs' : (produk.find((p) => p.id === d.produkId)?.satuan || 'pcs'))}
+                      </td>
                       <td className="px-3 py-2 text-right">{d.diskonItem > 0 ? rupiah(d.diskonItem) : '-'}</td>
                       <td className="px-3 py-2 text-right">{rupiah(d.subtotal)}</td>
                     </tr>
@@ -384,8 +393,10 @@ export function TransaksiAdmin() {
             {(() => {
               const subtotalKotor = detail.detail.reduce((a, d) => a + d.qty * d.hargaSatuan, 0)
               const totalDiskonItem = detail.detail.reduce((a, d) => a + (d.diskonItem || 0), 0)
+              const totalItem = detail.detail.reduce((a, d) => a + d.qty, 0)
               return (
                 <div className="ml-auto w-64 space-y-1 text-sm">
+                  <div className="flex justify-between"><span className="text-slate-500">Jumlah Item</span><span className="font-medium">{totalItem}</span></div>
                   <div className="flex justify-between"><span className="text-slate-500">Subtotal</span><span>{rupiah(subtotalKotor)}</span></div>
                   {totalDiskonItem > 0 && (
                     <div className="flex justify-between text-rose-500"><span>Diskon item</span><span>-{rupiah(totalDiskonItem)}</span></div>

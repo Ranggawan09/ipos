@@ -3,6 +3,7 @@
 export type StrukItem = {
   nama: string
   qty: number
+  satuan?: string
   harga: number
   diskonItem?: number
   subtotal: number
@@ -15,6 +16,7 @@ export type StrukData = {
   waktu: string
   kasir: string
   items: StrukItem[]
+  totalItem?: number
   subtotal: number
   diskonItem?: number
   diskonNota?: number
@@ -33,6 +35,7 @@ export function cetakStruk(data: StrukData) {
     alert('Izinkan pop-up untuk mencetak struk.')
     return
   }
+  const totalItemVal = data.totalItem ?? data.items.reduce((a, i) => a + i.qty, 0)
   const items = data.items
     .map((i) => {
       const hargaAsli = i.qty * i.harga
@@ -41,10 +44,11 @@ export function cetakStruk(data: StrukData) {
         diskon > 0
           ? `<div class="row" style="padding-left: 8px; font-size: 11px;"><span>Diskon</span><span>-${rp(diskon)}</span></div>`
           : ''
+      const unitStr = i.satuan ? ` ${i.satuan}` : ''
       return `
       <div class="item">
         <div>${i.nama}</div>
-        <div class="row"><span>${i.qty} x ${rp(i.harga)}</span><span>${rp(hargaAsli)}</span></div>
+        <div class="row"><span>${i.qty}${unitStr} x ${rp(i.harga)}</span><span>${rp(hargaAsli)}</span></div>
         ${diskonRow}
       </div>`
     })
@@ -71,6 +75,7 @@ export function cetakStruk(data: StrukData) {
     <div class="line"></div>
     ${items}
     <div class="line"></div>
+    <div class="row"><span>Jumlah Item</span><span>${totalItemVal}</span></div>
     <div class="row"><span>Subtotal</span><span>${rp(data.subtotal)}</span></div>
     ${
       data.diskonItem && data.diskonNota
@@ -142,7 +147,6 @@ export type POData = {
 
 const renderPOHtml = (po: POData) => {
   const totalItem = po.items.reduce((a, i) => a + i.qtyOrder, 0)
-  const totalEstimasi = po.items.reduce((a, i) => a + i.subtotal, 0)
 
   return `
     <div class="po-doc">
@@ -176,20 +180,15 @@ const renderPOHtml = (po: POData) => {
       </div>
 
       <p class="intro-text">
-        Dengan surat ini kami memesan barang-barang berikut untuk kebutuhan restock stok menipis:
+        Dengan surat ini kami memesan barang-barang berikut untuk kebutuhan restock:
       </p>
 
       <table class="po-table">
         <thead>
           <tr>
-            <th style="width: 32px;" class="center">No</th>
-            <th>Nama Barang &amp; Spesifikasi</th>
-            <th style="width: 80px;">SKU</th>
-            <th style="width: 70px;" class="center">Stok Sisa</th>
-            <th style="width: 70px;" class="center">Stok Min</th>
-            <th style="width: 80px;" class="center">Qty Pesan</th>
-            <th style="width: 95px;" class="num">Harga Satuan</th>
-            <th style="width: 110px;" class="num">Subtotal (Rp)</th>
+            <th style="width: 48px;" class="center">No</th>
+            <th>Nama Barang</th>
+            <th style="width: 150px;" class="center">Qty Pesan</th>
           </tr>
         </thead>
         <tbody>
@@ -199,12 +198,7 @@ const renderPOHtml = (po: POData) => {
             <tr>
               <td class="center">${idx + 1}</td>
               <td><strong>${it.nama}</strong></td>
-              <td class="mono">${it.sku}</td>
-              <td class="center text-rose">${it.stokSaatIni} ${it.satuan}</td>
-              <td class="center">${it.stokMin} ${it.satuan}</td>
               <td class="center bold text-primary">${it.qtyOrder} ${it.satuan}</td>
-              <td class="num">${it.hargaSatuan.toLocaleString('id-ID')}</td>
-              <td class="num bold">${it.subtotal.toLocaleString('id-ID')}</td>
             </tr>
           `,
             )
@@ -212,10 +206,8 @@ const renderPOHtml = (po: POData) => {
         </tbody>
         <tfoot>
           <tr>
-            <td colspan="5" class="total-label">TOTAL JUMLAH PESANAN</td>
+            <td colspan="2" class="total-label">TOTAL JUMLAH PESANAN (${po.items.length} Macam Barang)</td>
             <td class="center bold text-primary">${totalItem} Unit</td>
-            <td class="num bold">TOTAL</td>
-            <td class="num bold text-primary">Rp ${totalEstimasi.toLocaleString('id-ID')}</td>
           </tr>
         </tfoot>
       </table>
@@ -476,3 +468,240 @@ export function cetakSemuaPurchaseOrder(pos: POData[]) {
 </html>`)
   w.document.close()
 }
+
+export type StrukPengeluaranData = {
+  namaToko?: string
+  alamat?: string
+  nomor: string
+  waktu: string
+  kasir: string
+  shiftNomor?: 1 | 2 | number
+  kategori: string
+  keterangan?: string
+  items: {
+    nama: string
+    qty: number
+    harga: number
+    subtotal: number
+  }[]
+  total: number
+}
+
+export function cetakStrukPengeluaran(data: StrukPengeluaranData) {
+  const w = window.open('', '_blank', 'width=380,height=640')
+  if (!w) {
+    alert('Izinkan pop-up peramban untuk mencetak bukti pengeluaran.')
+    return
+  }
+
+  const itemsHtml = data.items
+    .map(
+      (i) => `
+      <div class="item">
+        <div>${i.nama}</div>
+        <div class="row"><span>${i.qty} x ${rp(i.harga)}</span><span>${rp(i.subtotal)}</span></div>
+      </div>`,
+    )
+    .join('')
+
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Pengeluaran ${data.nomor}</title>
+  <style>
+    * { font-family: 'Courier New', monospace; box-sizing: border-box; }
+    body { width: 72mm; margin: 0 auto; padding: 8px; font-size: 12px; color: #000; }
+    .center { text-align: center; }
+    .bold { font-weight: bold; }
+    .divider { border-top: 1px dashed #444; margin: 6px 0; }
+    .row { display: flex; justify-content: space-between; }
+    .item { margin-bottom: 4px; }
+    .total { font-size: 13px; font-weight: bold; margin: 4px 0; }
+    .sign { margin-top: 24px; text-align: center; }
+  </style></head><body onload="window.print()">
+    <div class="center bold" style="font-size: 14px;">${data.namaToko || 'TOKO PASAR JAYA'}</div>
+    <div class="center" style="font-size: 10px; color: #555;">${data.alamat || 'Pasar Induk Blok A No. 12, Jakarta'}</div>
+    <div class="divider"></div>
+    <div class="center bold" style="font-size: 12px; margin: 4px 0;">BUKTI PENGELUARAN KAS (POS)</div>
+    <div class="divider"></div>
+    <div class="row"><span>No. Bukti</span><span>${data.nomor}</span></div>
+    <div class="row"><span>Waktu</span><span>${data.waktu}</span></div>
+    <div class="row"><span>Kasir</span><span>${data.kasir} ${data.shiftNomor ? `(Shift ${data.shiftNomor})` : ''}</span></div>
+    <div class="row"><span>Kategori</span><span>${data.kategori}</span></div>
+    <div class="divider"></div>
+    <div style="font-size: 11px; font-weight: bold; margin-bottom: 4px;">RINCIAN BARANG:</div>
+    ${itemsHtml}
+    <div class="divider"></div>
+    <div class="row total"><span>TOTAL KAS KELUAR</span><span>Rp ${rp(data.total)}</span></div>
+    ${
+      data.keterangan
+        ? `<div class="divider"></div><div style="font-size: 10px; color: #333;">Catatan: ${data.keterangan}</div>`
+        : ''
+    }
+    <div class="divider"></div>
+    <div class="sign">
+      <div style="font-size: 11px;">Tanda Tangan Kasir,</div>
+      <div style="margin-top: 36px;">( ${data.kasir} )</div>
+    </div>
+  </body></html>`)
+  w.document.close()
+}
+
+export type SuratJalanBarangKeluarData = {
+  namaToko?: string
+  alamat?: string
+  telepon?: string
+  nomor: string
+  kategori: 'cacat' | 'retur'
+  supplierNama?: string
+  supplierKontak?: string
+  supplierTelepon?: string
+  tanggal: string
+  petugas: string
+  status: string
+  catatan?: string
+  items: {
+    namaProduk: string
+    sku: string
+    qty: number
+    satuan: string
+    hargaBeli: number
+    subtotal: number
+    alasan?: string
+  }[]
+  totalNilai: number
+}
+
+export function cetakSuratJalanBarangKeluar(data: SuratJalanBarangKeluarData) {
+  const w = window.open('', '_blank', 'width=750,height=850')
+  if (!w) {
+    alert('Izinkan pop-up peramban untuk mencetak surat jalan / bukti barang keluar.')
+    return
+  }
+
+  const judul = data.kategori === 'retur' ? 'SURAT JALAN RETUR BARANG' : 'BERITA ACARA BARANG CACAT / RUSAK'
+  const targetLabel = data.kategori === 'retur' ? 'Tujuan Supplier' : 'Unit Pencatat'
+
+  const itemsHtml = data.items
+    .map(
+      (item, idx) => `
+    <tr>
+      <td style="text-align: center; padding: 6px 8px; border-bottom: 1px solid #e2e8f0;">${idx + 1}</td>
+      <td style="padding: 6px 8px; border-bottom: 1px solid #e2e8f0;">
+        <div style="font-weight: 600; color: #1e293b;">${item.namaProduk}</div>
+        <div style="font-size: 11px; color: #64748b;">SKU: ${item.sku || '-'}</div>
+      </td>
+      <td style="padding: 6px 8px; border-bottom: 1px solid #e2e8f0; font-size: 11px; color: #475569;">
+        ${item.alasan || '-'}
+      </td>
+      <td style="text-align: center; padding: 6px 8px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">
+        ${item.qty} ${item.satuan}
+      </td>
+      <td style="text-align: right; padding: 6px 8px; border-bottom: 1px solid #e2e8f0;">
+        Rp ${rp(item.hargaBeli)}
+      </td>
+      <td style="text-align: right; padding: 6px 8px; border-bottom: 1px solid #e2e8f0; font-weight: 600;">
+        Rp ${rp(item.subtotal)}
+      </td>
+    </tr>`,
+    )
+    .join('')
+
+  w.document.write(`<!doctype html>
+  <html>
+  <head>
+    <meta charset="utf-8">
+    <title>${judul} - ${data.nomor}</title>
+    <style>
+      * { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; box-sizing: border-box; }
+      body { width: 100%; max-width: 720px; margin: 0 auto; padding: 24px; color: #1e293b; font-size: 13px; line-height: 1.5; }
+      .header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 16px; border-bottom: 2px solid #0f172a; margin-bottom: 16px; }
+      .title { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; color: #0f172a; margin-bottom: 4px; }
+      .badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; text-transform: uppercase; background: #f1f5f9; color: #475569; }
+      .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+      .info-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; }
+      .info-box h4 { margin: 0 0 6px 0; font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700; }
+      table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+      th { background: #f1f5f9; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; padding: 8px; text-align: left; border-bottom: 1px solid #cbd5e1; }
+      .total-row { display: flex; justify-content: flex-end; align-items: center; gap: 16px; font-size: 15px; font-weight: 800; margin-bottom: 32px; padding: 12px; background: #f8fafc; border-radius: 6px; }
+      .signatures { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; text-align: center; margin-top: 40px; }
+      .sign-box { border-top: 1px solid #cbd5e1; padding-top: 8px; font-weight: 600; font-size: 12px; color: #334155; }
+      .sign-space { height: 60px; }
+      @media print {
+        body { padding: 0; }
+        @page { margin: 15mm; }
+      }
+    </style>
+  </head>
+  <body onload="window.print()">
+    <div class="header">
+      <div>
+        <div class="title">${judul}</div>
+        <div style="font-weight: 700; color: #0284c7; font-size: 14px;">No: ${data.nomor}</div>
+        <div style="font-size: 12px; color: #64748b;">Tanggal: ${data.tanggal}</div>
+      </div>
+      <div style="text-align: right;">
+        <div style="font-weight: 700; font-size: 15px;">${data.namaToko || 'IPOS STORE'}</div>
+        <div style="font-size: 11px; color: #64748b;">${data.alamat || 'Pasar Induk Blok A No. 12, Jakarta'}</div>
+        <div style="margin-top: 4px;"><span class="badge">Status: ${data.status}</span></div>
+      </div>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-box">
+        <h4>${targetLabel}</h4>
+        ${
+          data.supplierNama
+            ? `<div style="font-weight: 700; font-size: 13px;">${data.supplierNama}</div>
+               ${data.supplierKontak ? `<div>Kontak: ${data.supplierKontak}</div>` : ''}
+               ${data.supplierTelepon ? `<div>Telepon: ${data.supplierTelepon}</div>` : ''}`
+            : `<div style="font-weight: 600; color: #64748b;">Internal Toko (Afkir / Pembuangan)</div>`
+        }
+      </div>
+      <div class="info-box">
+        <h4>Informasi & Catatan</h4>
+        <div>Petugas Input: <strong>${data.petugas}</strong></div>
+        ${data.catatan ? `<div style="margin-top: 4px; font-style: italic; color: #475569;">"${data.catatan}"</div>` : '<div style="color: #94a3b8;">- Tidak ada catatan khusus -</div>'}
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th style="width: 32px; text-align: center;">No</th>
+          <th>Nama Produk & SKU</th>
+          <th style="width: 140px;">Keterangan / Alasan</th>
+          <th style="text-align: center; width: 80px;">Qty</th>
+          <th style="text-align: right; width: 90px;">Harga Beli</th>
+          <th style="text-align: right; width: 100px;">Subtotal</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemsHtml}
+      </tbody>
+    </table>
+
+    <div class="total-row">
+      <span style="color: #64748b; font-weight: 600;">TOTAL ESTIMASI NILAI BARANG:</span>
+      <span style="color: #0f172a; font-size: 18px;">Rp ${rp(data.totalNilai)}</span>
+    </div>
+
+    <div class="signatures">
+      <div>
+        <div style="font-size: 11px; color: #64748b;">Dibuat Oleh,</div>
+        <div class="sign-space"></div>
+        <div class="sign-box">${data.petugas}</div>
+      </div>
+      <div>
+        <div style="font-size: 11px; color: #64748b;">Disetujui Admin/Gudang,</div>
+        <div class="sign-space"></div>
+        <div class="sign-box">( ......................... )</div>
+      </div>
+      <div>
+        <div style="font-size: 11px; color: #64748b;">Penerima / Driver Supplier,</div>
+        <div class="sign-space"></div>
+        <div class="sign-box">${data.supplierNama ? `( ${data.supplierNama} )` : '( ......................... )'}</div>
+      </div>
+    </div>
+  </body>
+  </html>`)
+  w.document.close()
+}
+

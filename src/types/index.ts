@@ -32,6 +32,21 @@ export type VarianBobot = {
   hargaJual: number
 }
 
+export type SatuanBertingkat = {
+  id: string
+  namaSatuan: string // contoh: "renceng", "pax", "karton"
+  satuanTurunan: string // satuan di bawahnya, contoh: "pcs"
+  isi: number // isi terhadap satuan di bawahnya (contoh: 12)
+  multiplierToBase: number // total pengali ke satuan dasar/terkecil (contoh: 12)
+  hargaBeli: number // modal satuan ini (bisa override)
+  marginPersen: number // margin %
+  hargaJual: number // harga jual satuan ini (bisa override)
+  barcode?: string
+  isPecahan?: boolean // true jika merupakan sub-satuan pecahan (misal: 1/2 renceng)
+  indukSatuan?: string // nama satuan induk (misal: "renceng")
+  rasio?: number // rasio terhadap induk (misal: 0.5)
+}
+
 export type Produk = {
   id: string
   sku: string
@@ -39,13 +54,15 @@ export type Produk = {
   nama: string
   kategoriId: string
   supplierId?: string
-  satuan: string
-  hargaBeli: number
-  hargaJual: number
-  stok: number
-  stokMinimum: number
+  satuan: string // Satuan terkecil (Base Unit), misal: 'pcs', 'kg'
+  hargaBeli: number // Modal satuan terkecil
+  hargaJual: number // Harga jual satuan terkecil
+  stok: number // Kuantitas dalam satuan terkecil
+  stokMinimum: number // Batas minimum dalam satuan terkecil
   aktif: boolean
+  tglExpired?: string // Tanggal kedaluwarsa produk (YYYY-MM-DD)
   varian?: VarianBobot[]
+  satuanBertingkat?: SatuanBertingkat[]
 }
 
 export type JenisPergerakan =
@@ -84,6 +101,9 @@ export type DetailTransaksi = {
   hargaSatuan: number
   hargaBeli: number
   qty: number
+  satuan?: string
+  satuanId?: string
+  multiplier?: number
   diskonItem: number // nominal rupiah
   subtotal: number
   varianId?: string
@@ -124,18 +144,28 @@ export type Shift = {
   totalPenjualan: number
   totalTunai: number
   totalNonTunai: number
+  totalPengeluaran?: number
   jumlahTransaksi: number
   saldoAkhir?: number
   status: 'buka' | 'tutup'
 }
 
+export type ItemPengeluaran = {
+  nama: string
+  qty: number
+  harga: number
+  subtotal: number
+}
+
 export type Pengeluaran = {
   id: string
-  kategori: 'listrik' | 'sewa' | 'gaji' | 'transport' | 'lainnya'
+  kategori: 'listrik' | 'sewa' | 'gaji' | 'transport' | 'lainnya' | 'operasional_kasir'
   keterangan: string
   jumlah: number
   tanggal: string
   userId: string
+  shiftId?: string
+  items?: ItemPengeluaran[]
 }
 
 export type HutangSupplier = {
@@ -149,16 +179,59 @@ export type HutangSupplier = {
   tanggal: string
 }
 
+export type ItemPenerimaan = {
+  produkId: string
+  namaProduk: string
+  qty: number
+  hargaBeli: number
+  satuan?: string
+  satuanId?: string
+  multiplier?: number
+  jumlahStokMasuk?: number
+  tglExpired?: string
+}
+
 export type PenerimaanBarang = {
   id: string
   nomor: string
   supplierId: string
-  items: { produkId: string; namaProduk: string; qty: number; hargaBeli: number }[]
+  items: ItemPenerimaan[]
   total: number
   metode: 'tunai' | 'kredit'
   jatuhTempo?: string
   userId: string
   waktu: string
+}
+
+export type KategoriBarangKeluar = 'cacat' | 'retur'
+export type StatusBarangKeluar = 'selesai' | 'proses_retur' | 'selesai_retur'
+export type ResolusiRetur = 'ganti_barang' | 'potong_hutang' | 'kembali_dana'
+
+export type ItemBarangKeluar = {
+  produkId: string
+  namaProduk: string
+  sku: string
+  qty: number
+  satuan: string
+  hargaBeli: number
+  subtotal: number
+  alasan?: string
+}
+
+export type BarangKeluar = {
+  id: string
+  nomor: string
+  kategori: KategoriBarangKeluar
+  supplierId?: string
+  items: ItemBarangKeluar[]
+  totalNilai: number
+  status: StatusBarangKeluar
+  resolusiRetur?: ResolusiRetur
+  tanggalKeluar: string
+  tanggalSelesai?: string
+  pengeluaranId?: string
+  userId: string
+  catatan?: string
 }
 
 export type LogSinkron = {

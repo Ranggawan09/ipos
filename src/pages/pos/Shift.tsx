@@ -45,9 +45,12 @@ export function ShiftPage() {
   const jumlahTransaksiShift = (shiftId: string) =>
     transaksi.filter((t) => t.shiftId === shiftId && t.status === 'selesai').length
 
+  const totalPengeluaranShift = shiftSaya?.totalPengeluaran ?? 0
+  const kasDiharapkan = (shiftSaya?.saldoAwal ?? 0) + (shiftSaya?.totalTunai ?? 0) - totalPengeluaranShift
+
   const bukaTutup = () => {
     if (!shiftSaya) return
-    setSaldoAkhir((shiftSaya.saldoAwal ?? 0) + shiftSaya.totalTunai)
+    setSaldoAkhir(kasDiharapkan)
     setTutupModal(true)
   }
 
@@ -58,7 +61,7 @@ export function ShiftPage() {
     setTutupModal(false)
   }
 
-  const selisihShift = shiftSaya ? saldoAkhir - (shiftSaya.saldoAwal + shiftSaya.totalTunai) : 0
+  const selisihShift = shiftSaya ? saldoAkhir - kasDiharapkan : 0
 
   const totalShiftTutup = rows.filter((s) => s.status === 'tutup').length
   const totalPenjualanSemua = rows.reduce((a, s) => a + s.totalPenjualan, 0)
@@ -87,7 +90,7 @@ export function ShiftPage() {
           action={renderShiftBadge(getShiftNomor(shiftSaya))}
           subtitle={`Dibuka ${tanggalJam(shiftSaya.waktuBuka)}`}
         >
-          <div className="grid gap-3 sm:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-5">
             <div>
               <p className="text-xs text-slate-500">Saldo awal</p>
               <p className="text-sm font-semibold text-slate-700">{rupiah(shiftSaya.saldoAwal)}</p>
@@ -95,6 +98,12 @@ export function ShiftPage() {
             <div>
               <p className="text-xs text-slate-500">Penjualan tunai</p>
               <p className="text-sm font-semibold text-slate-700">{rupiah(shiftSaya.totalTunai)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">Pengeluaran kasir</p>
+              <p className="text-sm font-semibold text-rose-600">
+                {totalPengeluaranShift > 0 ? `-${rupiah(totalPengeluaranShift)}` : 'Rp 0'}
+              </p>
             </div>
             <div>
               <p className="text-xs text-slate-500">Penjualan non-tunai</p>
@@ -108,7 +117,7 @@ export function ShiftPage() {
           <div className="mt-4 flex items-center justify-between rounded-lg bg-white px-4 py-3">
             <div>
               <p className="text-xs text-slate-500">Perkiraan saldo kas di laci</p>
-              <p className="text-lg font-bold text-slate-800">{rupiah(shiftSaya.saldoAwal + shiftSaya.totalTunai)}</p>
+              <p className="text-lg font-bold text-slate-800">{rupiah(kasDiharapkan)}</p>
             </div>
             <Button variant="danger" onClick={bukaTutup}>Tutup Shift</Button>
           </div>
@@ -158,6 +167,17 @@ export function ShiftPage() {
               </div>
             ) },
             { key: 'tunai', header: 'Tunai', align: 'right', render: (s) => rupiah(s.totalTunai) },
+            {
+              key: 'pengeluaran',
+              header: 'Kas Keluar',
+              align: 'right',
+              render: (s) =>
+                s.totalPengeluaran ? (
+                  <span className="font-medium text-rose-600">-{rupiah(s.totalPengeluaran)}</span>
+                ) : (
+                  '-'
+                ),
+            },
             { key: 'nonTunai', header: 'Non-Tunai', align: 'right', render: (s) => rupiah(s.totalNonTunai) },
             { key: 'saldoAkhir', header: 'Saldo Akhir', align: 'right', render: (s) => s.saldoAkhir !== undefined ? rupiah(s.saldoAkhir) : '-' },
             { key: 'status', header: 'Status', render: (s) => s.status === 'buka' ? <Badge warna="amber">Buka</Badge> : <Badge warna="slate">Tutup</Badge> },
@@ -179,7 +199,13 @@ export function ShiftPage() {
           <div className="space-y-1 rounded-lg bg-slate-50 p-3 text-sm">
             <div className="flex justify-between"><span className="text-slate-500">Saldo awal</span><span>{rupiah(shiftSaya?.saldoAwal ?? 0)}</span></div>
             <div className="flex justify-between"><span className="text-slate-500">Penjualan tunai</span><span>{rupiah(shiftSaya?.totalTunai ?? 0)}</span></div>
-            <div className="flex justify-between border-t border-slate-200 pt-1 font-medium"><span>Perkiraan</span><span>{rupiah((shiftSaya?.saldoAwal ?? 0) + (shiftSaya?.totalTunai ?? 0))}</span></div>
+            {totalPengeluaranShift > 0 && (
+              <div className="flex justify-between text-rose-600">
+                <span>Pengeluaran kasir (kas keluar)</span>
+                <span>-{rupiah(totalPengeluaranShift)}</span>
+              </div>
+            )}
+            <div className="flex justify-between border-t border-slate-200 pt-1 font-medium"><span>Perkiraan kas fisik laci</span><span>{rupiah(kasDiharapkan)}</span></div>
           </div>
           <div>
             <Label>Saldo kas akhir (hasil hitung fisik)</Label>

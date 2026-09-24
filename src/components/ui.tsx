@@ -60,9 +60,17 @@ export function Card({
 }
 
 // ---- Label ---------------------------------------------------------------
-export function Label({ children, htmlFor }: { children: React.ReactNode; htmlFor?: string }) {
+export function Label({
+  children,
+  htmlFor,
+  className = '',
+}: {
+  children: React.ReactNode
+  htmlFor?: string
+  className?: string
+}) {
   return (
-    <label htmlFor={htmlFor} className="mb-1 block text-xs font-medium text-slate-600">
+    <label htmlFor={htmlFor} className={`mb-1 block text-xs font-medium text-slate-600 ${className}`}>
       {children}
     </label>
   )
@@ -204,6 +212,85 @@ export const CurrencyInput = React.forwardRef<HTMLInputElement, CurrencyInputPro
 )
 CurrencyInput.displayName = 'CurrencyInput'
 
+// ---- NumberInput ---------------------------------------------------------
+export interface NumberInputProps
+  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'> {
+  value?: number
+  onChange?: (value: number) => void
+  placeholder?: string
+}
+
+export const NumberInput = React.forwardRef<HTMLInputElement, NumberInputProps>(
+  (
+    {
+      value = 0,
+      onChange,
+      placeholder = '0',
+      className = '',
+      min = 0,
+      onFocus,
+      onBlur,
+      ...rest
+    },
+    ref,
+  ) => {
+    const [isFocused, setIsFocused] = React.useState(false)
+    const [localStr, setLocalStr] = React.useState<string>(() =>
+      value === undefined || value === 0 ? '' : String(value),
+    )
+
+    React.useEffect(() => {
+      if (!isFocused) {
+        setLocalStr(value === undefined || value === 0 ? '' : String(value))
+      }
+    }, [value, isFocused])
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const raw = e.target.value
+      setLocalStr(raw)
+      if (raw === '' || raw === '-') {
+        onChange?.(0)
+      } else {
+        const num = parseFloat(raw)
+        if (!isNaN(num)) {
+          onChange?.(num)
+        }
+      }
+    }
+
+    return (
+      <input
+        ref={ref}
+        type="number"
+        min={min}
+        value={isFocused ? localStr : value === undefined || value === 0 ? '' : String(value)}
+        onChange={handleChange}
+        onFocus={(e) => {
+          setIsFocused(true)
+          if (value === 0 || value === undefined) {
+            setLocalStr('')
+          } else {
+            setLocalStr(String(value))
+          }
+          onFocus?.(e)
+        }}
+        onBlur={(e) => {
+          setIsFocused(false)
+          if (localStr === '' || isNaN(Number(localStr))) {
+            setLocalStr('')
+            onChange?.(0)
+          }
+          onBlur?.(e)
+        }}
+        placeholder={placeholder}
+        className={`${fieldCls} ${className}`}
+        {...rest}
+      />
+    )
+  },
+)
+NumberInput.displayName = 'NumberInput'
+
 export const Select = React.forwardRef<HTMLSelectElement, React.SelectHTMLAttributes<HTMLSelectElement>>(
   ({ className = '', ...rest }, ref) => (
     <select ref={ref} className={`${fieldCls} ${className}`} {...rest} />
@@ -264,7 +351,7 @@ export function Modal({
   if (!open) return null
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4 animate-fade-in">
-      <div className={`mt-12 w-full ${lebar} rounded-xl bg-white shadow-xl animate-fade-in`}>
+      <div className={`my-6 sm:my-8 w-full ${lebar} rounded-xl bg-white shadow-xl animate-fade-in`}>
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
           <h3 className="text-base font-semibold text-slate-800">{title}</h3>
           <button
@@ -274,7 +361,7 @@ export function Modal({
             Tutup
           </button>
         </div>
-        <div className="max-h-[70vh] overflow-y-auto px-5 py-4">{children}</div>
+        <div className="max-h-[80vh] overflow-y-auto px-5 py-4">{children}</div>
         {footer && <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-3">{footer}</div>}
       </div>
     </div>
