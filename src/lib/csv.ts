@@ -37,6 +37,83 @@ export function parseCSV(text: string): string[][] {
   return rows.filter((r) => r.some((x) => x.trim() !== ''))
 }
 
+export function parseXLS(content: string): string[][] {
+  const trimmed = content.trim()
+  if (!trimmed) return []
+
+  // 1. Cek jika format XML Spreadsheet (Excel XML 2003)
+  if (trimmed.includes('<Workbook') || (trimmed.includes('<?xml') && trimmed.includes('<Table>')) || trimmed.includes('xmlns:ss=')) {
+    try {
+      const parser = new DOMParser()
+      const xmlDoc = parser.parseFromString(trimmed, 'text/xml')
+      let rows = Array.from(xmlDoc.querySelectorAll('Row, row'))
+      if (!rows.length && xmlDoc.getElementsByTagNameNS) {
+        rows = Array.from(xmlDoc.getElementsByTagNameNS('*', 'Row'))
+        if (!rows.length) rows = Array.from(xmlDoc.getElementsByTagNameNS('*', 'row'))
+      }
+      if (rows.length > 0) {
+        return rows
+          .map((row) => {
+            let cells = Array.from(row.querySelectorAll('Cell, cell'))
+            if (!cells.length && row.getElementsByTagNameNS) {
+              cells = Array.from(row.getElementsByTagNameNS('*', 'Cell'))
+              if (!cells.length) cells = Array.from(row.getElementsByTagNameNS('*', 'cell'))
+            }
+            const rowData: string[] = []
+            let colIdx = 0
+            for (const cell of cells) {
+              const ssIndex =
+                cell.getAttribute('ss:Index') ||
+                cell.getAttribute('Index') ||
+                cell.getAttributeNS('urn:schemas-microsoft-com:office:spreadsheet', 'Index')
+              if (ssIndex) {
+                const targetIdx = parseInt(ssIndex, 10) - 1
+                while (colIdx < targetIdx) {
+                  rowData.push('')
+                  colIdx++
+                }
+              }
+              let dataEl = cell.querySelector('Data, data')
+              if (!dataEl && cell.getElementsByTagNameNS) {
+                const dataList = cell.getElementsByTagNameNS('*', 'Data')
+                if (dataList.length > 0) dataEl = dataList[0]
+              }
+              const text = (dataEl ? dataEl.textContent : cell.textContent) ?? ''
+              rowData.push(text.trim())
+              colIdx++
+            }
+            return rowData
+          })
+          .filter((r) => r.some((c) => c !== ''))
+      }
+    } catch {
+      // Fallback
+    }
+  }
+
+  // 2. Cek jika format HTML Table (.xls berbasis tag table)
+  if (trimmed.includes('<table') || trimmed.includes('<tr')) {
+    try {
+      const parser = new DOMParser()
+      const htmlDoc = parser.parseFromString(trimmed, 'text/html')
+      const trs = Array.from(htmlDoc.querySelectorAll('tr'))
+      if (trs.length > 0) {
+        return trs
+          .map((tr) => {
+            const cells = Array.from(tr.querySelectorAll('th, td'))
+            return cells.map((c) => (c.textContent ?? '').trim())
+          })
+          .filter((r) => r.some((c) => c !== ''))
+      }
+    } catch {
+      // Fallback
+    }
+  }
+
+  // 3. Fallback: parse sebagai CSV / TSV
+  return parseCSV(content)
+}
+
 export function toCSV(headers: string[], rows: (string | number)[][]): string {
   const esc = (v: string | number) => {
     const s = String(v ?? '')

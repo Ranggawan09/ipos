@@ -7,7 +7,7 @@ import { rupiah, tanggalJam } from '@/lib/format'
 import { Badge, Button, Card, DataTable, FR, Input, PageHeader, Select, StatCard } from '@/components/ui'
 
 export function Rekonsiliasi() {
-  const { shifts, users, transaksi } = useDataStore()
+  const { shifts, users, transaksi, pengeluaran } = useDataStore()
   const push = useToast((s) => s.push)
   const [filterKasir, setFilterKasir] = useState('')
   const [dari, setDari] = useState('')
@@ -17,26 +17,52 @@ export function Rekonsiliasi() {
       .filter((s) => s.status === 'tutup')
       .filter((s) => (!filterKasir || s.kasirId === filterKasir) && (!dari || s.waktuBuka >= new Date(dari).toISOString()))
       .map((s) => {
-        const perkiraan = s.saldoAwal + s.totalTunai
+        const pengeluaranShift = s.totalPengeluaran ?? pengeluaran.filter((x) => x.shiftId === s.id).reduce((sum, item) => sum + item.jumlah, 0)
+        const perkiraan = s.saldoAwal + s.totalTunai - pengeluaranShift
         const fisik = s.saldoAkhir ?? perkiraan
         const jmlVoid = transaksi.filter((t) => t.shiftId === s.id && t.status === 'void').length
-        return { ...s, perkiraan, fisik, selisih: fisik - perkiraan, jmlVoid }
+        return { ...s, pengeluaran: pengeluaranShift, perkiraan, fisik, selisih: fisik - perkiraan, jmlVoid }
       })
       .sort((a, b) => (a.waktuBuka < b.waktuBuka ? 1 : -1))
-  }, [shifts, transaksi, filterKasir, dari])
+  }, [shifts, transaksi, pengeluaran, filterKasir, dari])
 
   const namaKasir = (id: string) => users.find((u) => u.id === id)?.nama ?? id
 
   const totalPerkiraan = rows.reduce((a, r) => a + r.perkiraan, 0)
   const totalFisik = rows.reduce((a, r) => a + r.fisik, 0)
+  const totalPengeluaran = rows.reduce((a, r) => a + r.pengeluaran, 0)
   const totalSelisih = totalFisik - totalPerkiraan
   const jumlahSelisih = rows.filter((r) => r.selisih !== 0).length
 
   const unduhXLS = () => {
     exportXLS(
       'rekonsiliasi-kas.xls',
-      ['Kasir', 'Waktu Buka', 'Saldo Awal', 'Penjualan Tunai', 'Perkiraan Kas', 'Kas Fisik', 'Selisih', 'Transaksi', 'Void'],
-      rows.map((r) => [namaKasir(r.kasirId), tanggalJam(r.waktuBuka), r.saldoAwal, r.totalTunai, r.perkiraan, r.fisik, r.selisih, r.jumlahTransaksi, r.jmlVoid]),
+      [
+        'Kasir',
+        'Waktu Buka',
+        'Saldo Awal',
+        'Penjualan Tunai',
+        'Non-Tunai',
+        'Pengeluaran Kasir',
+        'Perkiraan Kas',
+        'Kas Fisik',
+        'Selisih',
+        'Transaksi',
+        'Void',
+      ],
+      rows.map((r) => [
+        namaKasir(r.kasirId),
+        tanggalJam(r.waktuBuka),
+        r.saldoAwal,
+        r.totalTunai,
+        r.totalNonTunai,
+        r.pengeluaran,
+        r.perkiraan,
+        r.fisik,
+        r.selisih,
+        r.jumlahTransaksi,
+        r.jmlVoid,
+      ]),
     )
     push({ tipe: 'sukses', judul: 'Rekonsiliasi diekspor ke Excel (.xls)' })
   }
@@ -45,9 +71,14 @@ export function Rekonsiliasi() {
     cetakLaporan(
       'Rekonsiliasi Kas',
       'Berdasarkan data shift kasir',
-      `<table><thead><tr><th>Kasir</th><th>Waktu</th><th class="num">Perkiraan Kas</th><th class="num">Kas Fisik</th><th class="num">Selisih</th></tr></thead><tbody>
-        ${rows.map((r) => `<tr><td>${namaKasir(r.kasirId)}</td><td>${tanggalJam(r.waktuBuka)}</td><td class="num">${rupiah(r.perkiraan)}</td><td class="num">${rupiah(r.fisik)}</td><td class="num">${rupiah(r.selisih)}</td></tr>`).join('')}
-      </tbody><tfoot><tr><td colspan="2">TOTAL</td><td class="num">${rupiah(totalPerkiraan)}</td><td class="num">${rupiah(totalFisik)}</td><td class="num">${rupiah(totalSelisih)}</td></tr></tfoot></table>`,
+      `<table><thead><tr><th>Kasir</th><th>Waktu</th><th class="num">Saldo Awal</th><th class="num">Tunai</th><th class="num">Pengeluaran</th><th class="num">Perkiraan Kas</th><th class="num">Kas Fisik</th><th class="num">Selisih</th></tr></thead><tbody>
+        ${rows
+          .map(
+            (r) =>
+              `<tr><td>${namaKasir(r.kasirId)}</td><td>${tanggalJam(r.waktuBuka)}</td><td class="num">${rupiah(r.saldoAwal)}</td><td class="num">${rupiah(r.totalTunai)}</td><td class="num text-danger">${r.pengeluaran > 0 ? `-${rupiah(r.pengeluaran)}` : 'Rp 0'}</td><td class="num">${rupiah(r.perkiraan)}</td><td class="num">${rupiah(r.fisik)}</td><td class="num">${rupiah(r.selisih)}</td></tr>`,
+          )
+          .join('')}
+      </tbody><tfoot><tr><td colspan="4">TOTAL</td><td class="num text-danger">-${rupiah(totalPengeluaran)}</td><td class="num">${rupiah(totalPerkiraan)}</td><td class="num">${rupiah(totalFisik)}</td><td class="num">${rupiah(totalSelisih)}</td></tr></tfoot></table>`,
     )
 
   return (
@@ -58,10 +89,11 @@ export function Rekonsiliasi() {
         aksi={<><FR kode="FR-FIN-04" /><FR kode="FR-FIN-08" /></>}
       />
 
-      <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <StatCard label="Shift Ditutup" value={rows.length} tone="brand" />
         <StatCard label="Total Perkiraan Kas" value={rupiah(totalPerkiraan)} tone="green" />
         <StatCard label="Total Kas Fisik" value={rupiah(totalFisik)} tone="violet" />
+        <StatCard label="Pengeluaran Kasir" value={rupiah(totalPengeluaran)} tone="rose" />
         <StatCard
           label="Total Selisih"
           value={`${totalSelisih > 0 ? '+' : ''}${rupiah(totalSelisih)}`}
@@ -99,6 +131,13 @@ export function Rekonsiliasi() {
             { key: 'saldoAwal', header: 'Saldo Awal', align: 'right', render: (r) => rupiah(r.saldoAwal) },
             { key: 'tunai', header: 'Penjualan Tunai', align: 'right', render: (r) => rupiah(r.totalTunai) },
             { key: 'nonTunai', header: 'Non-Tunai', align: 'right', render: (r) => <span className="text-slate-500">{rupiah(r.totalNonTunai)}</span> },
+            { key: 'pengeluaran', header: 'Pengeluaran Kasir', align: 'right', render: (r) => (
+              r.pengeluaran > 0 ? (
+                <span className="font-semibold text-rose-600">-{rupiah(r.pengeluaran)}</span>
+              ) : (
+                <span className="text-slate-400">Rp 0</span>
+              )
+            ) },
             { key: 'perkiraan', header: 'Perkiraan Kas', align: 'right', render: (r) => <span className="font-medium">{rupiah(r.perkiraan)}</span> },
             { key: 'fisik', header: 'Kas Fisik', align: 'right', render: (r) => rupiah(r.fisik) },
             { key: 'selisih', header: 'Selisih', align: 'right', render: (r) => (
