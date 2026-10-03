@@ -8,7 +8,10 @@ export const rupiahShort = (n: number) => {
   return rupiah(n)
 }
 
-export const angka = (n: number) => Math.round(n).toLocaleString('id-ID')
+export const angka = (n: number) => {
+  if (Number.isInteger(n)) return n.toLocaleString('id-ID')
+  return Number(n.toFixed(2)).toLocaleString('id-ID')
+}
 
 const HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu']
 const BULAN = [

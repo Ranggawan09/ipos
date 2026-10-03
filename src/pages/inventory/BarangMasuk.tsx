@@ -86,6 +86,7 @@ export function BarangMasuk() {
     }
     return [{ produkId: '', satuan: 'pcs', multiplier: 1, qty: 1, hargaBeli: 0, tglExpired: '' }]
   })
+  const [updateHargaModal, setUpdateHargaModal] = useState(true)
 
   // State untuk form tambah produk baru langsung dari penerimaan
   const [formProdukBaru, setFormProdukBaru] = useState({
@@ -186,11 +187,12 @@ export function BarangMasuk() {
       metode,
       jatuhTempo: metode === 'kredit' ? new Date(jatuhTempo).toISOString() : undefined,
       userId: currentUser?.id ?? 'USR-01',
+      updateHargaModal,
     })
     push({
       tipe: 'sukses',
       judul: 'Penerimaan barang dicatat',
-      pesan: `${valid.length} item, total ${rupiah(total)}${metode === 'kredit' ? ' (kredit)' : ''}`,
+      pesan: `${valid.length} item, total ${rupiah(total)}${updateHargaModal ? ' (Harga modal produk otomatis diperbarui)' : ''}${metode === 'kredit' ? ' [Kredit]' : ''}`,
     })
     setModal(false)
     reset()
@@ -374,6 +376,21 @@ export function BarangMasuk() {
             </div>
           </div>
 
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-emerald-50/80 border border-emerald-200 px-3.5 py-2.5 text-xs">
+            <label className="flex items-center gap-2 cursor-pointer font-medium text-emerald-950 select-none">
+              <input
+                type="checkbox"
+                checked={updateHargaModal}
+                onChange={(e) => setUpdateHargaModal(e.target.checked)}
+                className="h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              <span>Update otomatis harga modal (HPP) produk di master data sesuai harga penerimaan saat ini</span>
+            </label>
+            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-white border border-emerald-200 px-2 py-0.5 rounded-full shadow-2xs">
+              ⚡ HPP Terupdate Otomatis
+            </span>
+          </div>
+
           <div className="rounded-xl border border-slate-200 overflow-hidden bg-slate-50/50">
             <div className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-2.5">
               <div>
@@ -517,7 +534,7 @@ export function BarangMasuk() {
 
                     {/* Informasi Konversi Stok Fisik & Subtotal */}
                     <div className="flex flex-wrap items-center justify-between gap-2 rounded bg-slate-50 px-2.5 py-1.5 text-xs border border-slate-100">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <span className="inline-flex items-center gap-1 font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded">
                           📦 Stok masuk: +{stokMasuk.toLocaleString('id-ID')} {prod?.satuan || 'pcs'}
                         </span>
@@ -528,6 +545,16 @@ export function BarangMasuk() {
                         ) : (
                           <span className="text-slate-400 italic">
                             (Satuan eceran)
+                          </span>
+                        )}
+                        {b.hargaBeli > 0 && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+                            💰 Modal: {rupiah(Math.round(b.hargaBeli / b.multiplier))}/{prod?.satuan || 'pcs'}
+                            {prod && prod.hargaBeli > 0 && prod.hargaBeli !== Math.round(b.hargaBeli / b.multiplier) && (
+                              <span className="text-slate-400 line-through text-[10px] ml-0.5">
+                                {rupiah(prod.hargaBeli)}
+                              </span>
+                            )}
                           </span>
                         )}
                         {b.tglExpired ? (
@@ -660,7 +687,12 @@ export function BarangMasuk() {
                           )}
                         </td>
                         <td className="p-2.5 text-right text-slate-600">
-                          {rupiah(item.hargaBeli)}
+                          <div className="font-semibold text-slate-800">{rupiah(item.hargaBeli)}</div>
+                          {mult > 1 && (
+                            <div className="text-[10px] text-emerald-700 font-medium">
+                              ≈ {rupiah(Math.round(item.hargaBeli / mult))}/{prod?.satuan || 'pcs'}
+                            </div>
+                          )}
                         </td>
                         <td className="p-2.5 text-right font-bold text-slate-900">
                           {rupiah(subtotal)}

@@ -8,7 +8,7 @@ import { angka, jam } from '@/lib/format'
 import { Badge } from './ui'
 import { ModalRestockSupplier } from './ModalRestockSupplier'
 
-export function Topbar({ judul }: { judul?: string }) {
+export function TopbarActions() {
   const navigate = useNavigate()
   const { produk, logSinkron, tambahLogSinkron } = useDataStore()
   const { currentUser, logout, offlineMode, setOffline, pendingQueue, flushPending } =
@@ -48,11 +48,7 @@ export function Topbar({ judul }: { judul?: string }) {
   }
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 lg:px-6">
-      <div className="flex items-center gap-3">
-        <h2 className="text-sm font-semibold text-slate-700">{judul}</h2>
-      </div>
-
+    <>
       <div className="flex items-center gap-2">
         {/* Indikator server lokal (simulasi WebSocket) */}
         <span
@@ -206,6 +202,17 @@ export function Topbar({ judul }: { judul?: string }) {
         open={modalRestock}
         onClose={() => setModalRestock(false)}
       />
+    </>
+  )
+}
+
+export function Topbar({ judul }: { judul?: string }) {
+  return (
+    <header className="sticky top-0 z-30 flex h-14 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 lg:px-6">
+      <div className="flex items-center gap-3">
+        <h2 className="text-sm font-semibold text-slate-700">{judul}</h2>
+      </div>
+      <TopbarActions />
     </header>
   )
 }

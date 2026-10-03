@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import type { MetodePembayaran, Produk, SatuanBertingkat, Transaksi, VarianBobot } from '@/types'
 import { useDataStore } from '@/store/useDataStore'
 import { useSessionStore } from '@/store/useSessionStore'
@@ -7,7 +6,7 @@ import { useToast } from '@/store/useToast'
 import { angka, rupiah, tanggalJam } from '@/lib/format'
 import { cetakStruk } from '@/lib/print'
 import { Button, CurrencyInput, Input, Label, Modal, Select } from '@/components/ui'
-import { syncService, type SyncStatus } from '@/lib/syncService'
+import { syncService } from '@/lib/syncService'
 
 function BukaShift() {
   const { bukaShift } = useDataStore()
@@ -173,7 +172,6 @@ function StrukView({ trx, namaKasir }: { trx: Transaksi; namaKasir: string }) {
 }
 
 export function KasirPOS() {
-  const navigate = useNavigate()
   const { produk, kategori, shifts, buatTransaksi } = useDataStore()
   const {
     currentUser, cart, diskonNota, addToCart, setQty, setDiskonItem, removeFromCart,
@@ -181,17 +179,36 @@ export function KasirPOS() {
   } = useSessionStore()
   const push = useToast((s) => s.push)
 
-  const barcodeRef = useRef<HTMLInputElement>(null)
-  const [barcode, setBarcode] = useState('')
+  const cartContainerRef = useRef<HTMLDivElement>(null)
+  const prevCartLenRef = useRef<number>(cart.length)
+
+  const scrollToBottom = () => {
+    setTimeout(() => {
+      if (cartContainerRef.current) {
+        cartContainerRef.current.scrollTo({
+          top: cartContainerRef.current.scrollHeight,
+          behavior: 'smooth',
+        })
+      }
+    }, 60)
+  }
+
+  useEffect(() => {
+    if (cart.length > prevCartLenRef.current) {
+      scrollToBottom()
+    }
+    prevCartLenRef.current = cart.length
+  }, [cart.length])
+
+  const cariInputRef = useRef<HTMLInputElement>(null)
   const [cari, setCari] = useState('')
   const [filterKat, setFilterKat] = useState('')
+  const [filterStok, setFilterStok] = useState<'semua' | 'tersedia' | 'habis'>('semua')
   const [bayarOpen, setBayarOpen] = useState(false)
   const [metode, setMetode] = useState<MetodePembayaran>('tunai')
   const [dibayar, setDibayar] = useState(0)
   const [struk, setStruk] = useState<Transaksi | null>(null)
-  const [syncStatus, setSyncStatus] = useState<SyncStatus>(syncService.status)
   const [recentUpdatedIds, setRecentUpdatedIds] = useState<Set<string>>(new Set())
-  const [qrModalOpen, setQrModalOpen] = useState(false)
   const [mobileView, setMobileView] = useState<'catalog' | 'cart'>('catalog')
   const [varianModalProduk, setVarianModalProduk] = useState<Produk | null>(null)
 
@@ -202,10 +219,6 @@ export function KasirPOS() {
   }, [openShift?.id])
 
   useEffect(() => {
-    const unsubStatus = syncService.onStatusChange((status) => {
-      setSyncStatus({ ...status })
-    })
-
     const unsubMutation = syncService.onStockMutation((ev) => {
       const ids = ev.items.map((i) => i.produkId)
       setRecentUpdatedIds((prev) => {
@@ -225,28 +238,45 @@ export function KasirPOS() {
     })
 
     return () => {
-      unsubStatus()
       unsubMutation()
     }
   }, [])
 
-  const focusBarcode = () => {
+  const focusSearch = () => {
     const isTouch = typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
     if (isTouch) return
-    if (!bayarOpen && !struk) setTimeout(() => barcodeRef.current?.focus(), 60)
+    if (!bayarOpen && !struk) setTimeout(() => cariInputRef.current?.focus(), 60)
   }
 
   useEffect(() => {
-    focusBarcode()
+    focusSearch()
   }, [])
 
   const grid = useMemo(() => {
     const q = cari.toLowerCase()
     return produk
-      .filter((p) => p.aktif && p.stok > 0)
-      .filter((p) => (!q || p.nama.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)) && (!filterKat || p.kategoriId === filterKat))
-      .slice(0, 60)
-  }, [produk, cari, filterKat])
+      .filter((p) => p.aktif)
+      .filter((p) => {
+        if (filterStok === 'tersedia') return p.stok > 0
+        if (filterStok === 'habis') return p.stok <= 0
+        return true
+      })
+      .filter(
+        (p) =>
+          (!q ||
+            p.nama.toLowerCase().includes(q) ||
+            p.sku.toLowerCase().includes(q) ||
+            p.barcode.toLowerCase().includes(q)) &&
+          (!filterKat || p.kategoriId === filterKat),
+      )
+      .sort((a, b) => {
+        const aHabis = (a.stok ?? 0) <= 0 ? 1 : 0
+        const bHabis = (b.stok ?? 0) <= 0 ? 1 : 0
+        if (aHabis !== bHabis) return aHabis - bHabis
+        return a.nama.localeCompare(b.nama, 'id', { numeric: true, sensitivity: 'base' })
+      })
+      .slice(0, 150)
+  }, [produk, cari, filterKat, filterStok])
 
   const subtotalKotor = cart.reduce((a, c) => a + c.hargaJual * c.qty, 0)
   const totalDiskonItem = cart.reduce((a, c) => a + (c.diskonItem || 0), 0)
@@ -255,9 +285,9 @@ export function KasirPOS() {
   const total = Math.max(0, subtotal - diskonNominal)
   const totalItem = cart.reduce((a, c) => a + c.qty, 0)
 
-  const handleBarcode = (e: React.FormEvent) => {
+  const handleCariSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    const code = barcode.trim()
+    const code = cari.trim()
     if (!code) return
     const p = produk.find((x) =>
       x.barcode === code ||
@@ -265,9 +295,14 @@ export function KasirPOS() {
       x.satuanBertingkat?.some((s) => s.barcode && s.barcode === code),
     )
     if (!p) {
-      push({ tipe: 'error', judul: 'Produk tidak ditemukan', pesan: `Kode: ${code}` })
+      if (grid.length === 1) {
+        klikProduk(grid[0])
+        setCari('')
+      } else {
+        push({ tipe: 'error', judul: 'Produk tidak ditemukan', pesan: `Kata kunci: ${code}` })
+      }
     } else if (p.stok <= 0) {
-      push({ tipe: 'peringatan', judul: 'Stok habis', pesan: p.nama })
+      push({ tipe: 'peringatan', judul: 'Stok Habis', pesan: `Produk "${p.nama}" tidak dapat ditambahkan karena stok habis.` })
     } else {
       const matchedTier = p.satuanBertingkat?.find((s) => s.barcode === code)
       if (matchedTier) {
@@ -279,6 +314,7 @@ export function KasirPOS() {
           })
         } else {
           addToCart(p, 1, undefined, matchedTier)
+          scrollToBottom()
           push({
             tipe: 'sukses',
             judul: `${p.nama} (${matchedTier.namaSatuan})`,
@@ -289,10 +325,11 @@ export function KasirPOS() {
         setVarianModalProduk(p)
       } else {
         addToCart(p)
+        scrollToBottom()
         push({ tipe: 'sukses', judul: p.nama, pesan: 'Ditambahkan ke keranjang' })
       }
+      setCari('')
     }
-    setBarcode('')
   }
 
   const klikProduk = (p: Produk) => {
@@ -300,22 +337,33 @@ export function KasirPOS() {
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur()
     }
+    if (p.stok <= 0) {
+      push({
+        tipe: 'peringatan',
+        judul: 'Stok Habis',
+        pesan: `Produk "${p.nama}" tidak dapat ditambahkan ke keranjang karena stok habis.`,
+      })
+      return
+    }
     if ((p.varian && p.varian.length > 0) || (p.satuanBertingkat && p.satuanBertingkat.length > 0)) {
       setVarianModalProduk(p)
     } else {
       addToCart(p)
+      scrollToBottom()
     }
   }
 
   const pilihVarian = (p: Produk, v: VarianBobot) => {
     addToCart(p, 1, v)
     setVarianModalProduk(null)
+    scrollToBottom()
     push({ tipe: 'sukses', judul: `${p.nama} (${v.nama})`, pesan: 'Ditambahkan ke keranjang' })
   }
 
   const pilihSatuanBertingkat = (p: Produk, s: SatuanBertingkat) => {
     addToCart(p, 1, undefined, s)
     setVarianModalProduk(null)
+    scrollToBottom()
     push({
       tipe: 'sukses',
       judul: `${p.nama} (${s.namaSatuan})`,
@@ -326,6 +374,7 @@ export function KasirPOS() {
   const pilihSatuanDasar = (p: Produk) => {
     addToCart(p, 1)
     setVarianModalProduk(null)
+    scrollToBottom()
     push({
       tipe: 'sukses',
       judul: `${p.nama} (1 ${p.satuan || 'pcs'})`,
@@ -369,7 +418,7 @@ export function KasirPOS() {
       })
       clearCart()
       setBayarOpen(false)
-      focusBarcode()
+      focusSearch()
       return
     }
 
@@ -385,6 +434,8 @@ export function KasirPOS() {
         hargaBeli: c.hargaBeli,
         qty: c.qty,
         satuan: c.satuan || 'pcs',
+        satuanId: c.satuanId,
+        multiplier: c.multiplier,
         diskonItem: c.diskonItem,
         subtotal: Math.max(0, c.hargaJual * c.qty - (c.diskonItem || 0)),
         varianId: c.varianId,
@@ -409,83 +460,28 @@ export function KasirPOS() {
       {/* Kiri: katalog produk */}
       <div className={`flex min-w-0 flex-1 flex-col ${mobileView === 'cart' ? 'hidden md:flex' : 'flex'}`}>
         <div className="border-b border-slate-200 bg-white p-3">
-          {/* Status Bar Sinkronisasi Multi-Perangkat */}
-          <div className="mb-2.5 flex items-center justify-between rounded-lg border border-slate-200/80 bg-slate-50/80 px-3 py-1.5 text-xs shadow-xs">
-            <div className="flex items-center gap-2">
-              {syncStatus.mode === 'ws' && syncStatus.connected ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-100/70 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
-                  <span className="relative flex h-2 w-2">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
-                  </span>
-                  LAN Realtime ({syncStatus.activePeers} Perangkat)
-                </span>
-              ) : syncStatus.mode === 'poll' && syncStatus.connected ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-300 bg-sky-100/70 px-2.5 py-0.5 text-xs font-semibold text-sky-800">
-                  <span className="h-2 w-2 rounded-full bg-sky-500"></span>
-                  Web Sync Aktif
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 bg-slate-200/60 px-2.5 py-0.5 text-xs font-medium text-slate-600">
-                  <span className="h-2 w-2 rounded-full bg-slate-400"></span>
-                  Lokal Standalone
-                </span>
-              )}
-              <span className="hidden font-mono text-[11px] text-slate-500 sm:inline">
-                ID: {syncService.getDeviceId()}
-              </span>
-              <span
-                className={`inline-flex items-center px-2 py-0.5 text-xs font-bold text-white shadow-xs ${
-                  openShift.shiftNomor === 1 ? 'bg-emerald-600' : 'bg-amber-600'
-                }`}
-              >
-                Shift {openShift.shiftNomor || 1}
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => navigate('/kasir/pengeluaran')}
-                className="inline-flex items-center gap-1 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 shadow-xs hover:bg-rose-100 hover:border-rose-300 transition"
-                title="Buka halaman pengeluaran kas kecil kasir"
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M20 12V8H6a2 2 0 0 1 0-4h12v4M4 6v12a2 2 0 0 0 2 2h14v-4M18 12a2 2 0 0 0 0 4h4v-4z" />
-                </svg>
-                <span>Kas Keluar</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setQrModalOpen(true)}
-                className="inline-flex items-center rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 shadow-xs hover:border-brand-400 hover:bg-brand-50 hover:text-brand-700 transition"
-              >
-                Hubungkan HP (QR)
-              </button>
-            </div>
-          </div>
-
-          <form onSubmit={handleBarcode} className="mb-2 flex gap-2">
-            <div className="relative flex-1">
-              <Input
-                ref={barcodeRef}
-                value={barcode}
-                onChange={(e) => setBarcode(e.target.value)}
-                placeholder="Pindai barcode atau ketik SKU lalu tekan Enter..."
-                className="text-base"
-              />
-            </div>
-          </form>
-          <div className="flex gap-2">
+          <form onSubmit={handleCariSubmit} className="flex flex-wrap gap-2">
             <Input
+              ref={cariInputRef}
               value={cari}
               onChange={(e) => setCari(e.target.value)}
-              placeholder="Cari nama produk..."
+              placeholder="Cari nama produk, SKU, atau scan barcode..."
+              className="flex-1 min-w-[140px]"
             />
-            <Select value={filterKat} onChange={(e) => setFilterKat(e.target.value)} className="w-48">
+            <Select value={filterKat} onChange={(e) => setFilterKat(e.target.value)} className="w-36 sm:w-44">
               <option value="">Semua kategori</option>
               {kategori.map((k) => <option key={k.id} value={k.id}>{k.nama}</option>)}
             </Select>
-          </div>
+            <Select
+              value={filterStok}
+              onChange={(e) => setFilterStok(e.target.value as 'semua' | 'tersedia' | 'habis')}
+              className="w-32 sm:w-36"
+            >
+              <option value="semua">Semua Stok</option>
+              <option value="tersedia">Stok Tersedia</option>
+              <option value="habis">Stok Habis</option>
+            </Select>
+          </form>
         </div>
 
         <div className="flex-1 overflow-y-auto p-3">
@@ -494,27 +490,38 @@ export function KasirPOS() {
               const isRecent = recentUpdatedIds.has(p.id)
               const hasVarian = p.varian && p.varian.length > 0
               const hasSatuan = p.satuanBertingkat && p.satuanBertingkat.length > 0
+              const isHabis = p.stok <= 0
+
               return (
                 <button
                   key={p.id}
                   onClick={() => klikProduk(p)}
-                  className={`flex flex-col rounded-xl border bg-white p-3 text-left transition active:scale-[0.98] ${
-                    isRecent
-                      ? 'border-amber-400 bg-amber-50/70 ring-2 ring-amber-400 shadow-md animate-pulse'
-                      : hasSatuan
-                        ? 'border-emerald-200 hover:border-emerald-400 hover:shadow-md'
-                        : hasVarian
-                          ? 'border-indigo-200 hover:border-indigo-400 hover:shadow-md'
-                          : 'border-slate-200 hover:border-emerald-400 hover:shadow-md'
+                  className={`flex flex-col rounded-xl border p-3 text-left transition active:scale-[0.98] ${
+                    isHabis
+                      ? 'border-rose-200 bg-rose-50/40 opacity-80 hover:border-rose-400 hover:opacity-100'
+                      : isRecent
+                        ? 'border-amber-400 bg-amber-50/70 ring-2 ring-amber-400 shadow-md animate-pulse'
+                        : hasSatuan
+                          ? 'border-emerald-200 bg-white hover:border-emerald-400 hover:shadow-md'
+                          : hasVarian
+                            ? 'border-indigo-200 bg-white hover:border-indigo-400 hover:shadow-md'
+                            : 'border-slate-200 bg-white hover:border-emerald-400 hover:shadow-md'
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-1">
-                    <p className="line-clamp-2 min-h-[34px] text-xs font-medium text-slate-700">{p.nama}</p>
-                    {isRecent && (
-                      <span className="shrink-0 rounded bg-amber-500 px-1.5 py-0.5 text-[9px] font-semibold text-white shadow-xs">
-                        Stok Berubah
-                      </span>
-                    )}
+                  <div className="flex items-start justify-between gap-1.5">
+                    <p className={`line-clamp-2 min-h-[34px] text-xs font-medium ${isHabis ? 'text-slate-600' : 'text-slate-700'}`}>{p.nama}</p>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      {isHabis && (
+                        <span className="shrink-0 rounded bg-rose-600 px-1.5 py-0.5 text-[9px] font-bold text-white shadow-xs">
+                          Produk Habis
+                        </span>
+                      )}
+                      {isRecent && !isHabis && (
+                        <span className="shrink-0 rounded bg-amber-500 px-1.5 py-0.5 text-[9px] font-semibold text-white shadow-xs">
+                          Stok Berubah
+                        </span>
+                      )}
+                    </div>
                   </div>
                   {hasSatuan ? (
                     <>
@@ -526,9 +533,16 @@ export function KasirPOS() {
                           {p.satuanBertingkat!.length + 1} satuan
                         </span>
                       </div>
-                      <p className="mt-0.5 text-xs font-semibold text-emerald-600">
-                        {rupiah(p.hargaJual)} – {rupiah(Math.max(...p.satuanBertingkat!.map((s) => s.hargaJual)))}
-                      </p>
+                      {(() => {
+                        const allHargas = [p.hargaJual, ...p.satuanBertingkat!.map((s) => s.hargaJual)]
+                        const minH = Math.min(...allHargas)
+                        const maxH = Math.max(...allHargas)
+                        return (
+                          <p className={`mt-0.5 text-xs font-semibold ${isHabis ? 'text-slate-500' : 'text-emerald-600'}`}>
+                            {minH === maxH ? rupiah(minH) : `${rupiah(minH)} – ${rupiah(maxH)}`}
+                          </p>
+                        )
+                      })()}
                     </>
                   ) : hasVarian ? (
                     <>
@@ -540,25 +554,27 @@ export function KasirPOS() {
                           {p.varian!.length} pilihan
                         </span>
                       </div>
-                      <p className="mt-0.5 text-xs font-semibold text-emerald-600">
+                      <p className={`mt-0.5 text-xs font-semibold ${isHabis ? 'text-slate-500' : 'text-emerald-600'}`}>
                         {rupiah(Math.min(...p.varian!.map((v) => v.hargaJual)))} – {rupiah(Math.max(...p.varian!.map((v) => v.hargaJual)))}
                       </p>
                     </>
                   ) : (
-                    <p className="mt-1 text-sm font-bold text-emerald-600">{rupiah(p.hargaJual)}</p>
+                    <p className={`mt-1 text-sm font-bold ${isHabis ? 'text-slate-600' : 'text-emerald-600'}`}>{rupiah(p.hargaJual)}</p>
                   )}
                   <div className="mt-1 flex items-center justify-between">
                     <span className="font-mono text-[10px] text-slate-400">{p.sku}</span>
                     <span
                       className={`text-[10px] font-medium ${
-                        isRecent
-                          ? 'font-bold text-amber-700'
-                          : p.stok <= p.stokMinimum
-                            ? 'text-amber-600'
-                            : 'text-slate-400'
+                        isHabis
+                          ? 'font-bold text-rose-600'
+                          : isRecent
+                            ? 'font-bold text-amber-700'
+                            : p.stok <= p.stokMinimum
+                              ? 'text-amber-600'
+                              : 'text-slate-400'
                       }`}
                     >
-                      stok {p.stok} {p.satuan || 'pcs'}
+                      {isHabis ? `Habis (0 ${p.satuan || 'pcs'})` : `stok ${p.stok} ${p.satuan || 'pcs'}`}
                     </span>
                   </div>
                 </button>
@@ -612,7 +628,7 @@ export function KasirPOS() {
           </Button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-3 py-2">
+        <div ref={cartContainerRef} className="flex-1 overflow-y-auto px-3 py-2 scroll-smooth">
           {cart.length === 0 ? (
             <div className="flex h-full flex-col items-center justify-center text-center">
               <p className="text-sm text-slate-400">Belum ada item</p>
@@ -635,7 +651,30 @@ export function KasirPOS() {
                         )}
                       </div>
                     </div>
-                    <button onClick={() => removeFromCart(itemKey)} className="shrink-0 text-slate-300 hover:text-rose-500">×</button>
+                    <button
+                      type="button"
+                      onClick={() => removeFromCart(itemKey)}
+                      className="shrink-0 rounded-md border border-rose-200 bg-rose-50/70 p-1.5 text-rose-600 hover:bg-rose-100 hover:border-rose-300 transition"
+                      title="Hapus produk dari keranjang"
+                      aria-label={`Hapus ${c.nama} dari keranjang`}
+                    >
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M3 6h18" />
+                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                        <line x1="10" y1="11" x2="10" y2="17" />
+                        <line x1="14" y1="11" x2="14" y2="17" />
+                      </svg>
+                    </button>
                   </div>
                   <div className="mt-2 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1">
@@ -664,50 +703,13 @@ export function KasirPOS() {
         </div>
 
         <div className="border-t border-slate-200 p-3">
-          <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
-            <span>Diskon nota</span>
-            <CurrencyInput
-              sizeVariant="sm"
-              value={diskonNota}
-              onChange={setDiskonNota}
-              wrapperClassName="w-32"
-              className="text-right py-0.5 font-medium rounded-md border-slate-200"
-            />
-          </div>
-          <div className="mb-1 flex justify-between text-sm text-slate-500">
-            <span>Subtotal</span><span>{rupiah(subtotalKotor)}</span>
-          </div>
-          {totalDiskonItem > 0 && (
-            <div className="mb-1 flex justify-between text-sm text-rose-500">
-              <span>Diskon item</span><span>-{rupiah(totalDiskonItem)}</span>
-            </div>
-          )}
-          {diskonNominal > 0 && (
-            <div className="mb-1 flex justify-between text-sm text-rose-500">
-              <span>Diskon nota</span><span>-{rupiah(diskonNominal)}</span>
-            </div>
-          )}
-          <div className="mb-3 flex items-center justify-between border-t border-slate-100 pt-2">
-            <span className="text-sm font-medium text-slate-600">Total</span>
-            <span className="text-xl font-bold text-emerald-600">{rupiah(total)}</span>
+          <div className="mb-3 flex items-center justify-between">
+            <span className="text-sm font-semibold text-slate-600">Total</span>
+            <span className="text-2xl font-extrabold text-emerald-600">{rupiah(total)}</span>
           </div>
           <Button className="w-full" size="lg" variant="success" onClick={bukaBayar}>
             Bayar {total > 0 ? `(${rupiah(total)})` : ''}
           </Button>
-          <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-400">
-            <button
-              onClick={() => navigate('/kasir/riwayat')}
-              className="hover:text-slate-600 hover:underline"
-            >
-              Riwayat Transaksi
-            </button>
-            <button
-              onClick={() => navigate('/kasir/pengeluaran')}
-              className="font-medium text-rose-600 hover:underline"
-            >
-              + Pengeluaran Kasir
-            </button>
-          </div>
         </div>
       </div>
 
@@ -736,6 +738,44 @@ export function KasirPOS() {
                 Mode offline: transaksi akan diantrekan
               </p>
             )}
+          </div>
+
+          {/* Diskon Nota */}
+          <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3">
+            <div className="mb-1.5 flex items-center justify-between">
+              <Label className="mb-0 text-xs font-semibold text-slate-700">Diskon Nota / Potongan Total</Label>
+              {diskonNota > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDiskonNota(0)
+                    if (metode !== 'tunai') {
+                      setDibayar(subtotal)
+                    } else if (dibayar === total) {
+                      setDibayar(Math.ceil(subtotal / 5000) * 5000)
+                    }
+                  }}
+                  className="text-[11px] font-semibold text-rose-600 hover:underline"
+                >
+                  Reset (Rp 0)
+                </button>
+              )}
+            </div>
+            <CurrencyInput
+              sizeVariant="md"
+              value={diskonNota}
+              onChange={(val) => {
+                setDiskonNota(val)
+                const newTotal = Math.max(0, subtotal - Math.min(subtotal, Math.max(0, val)))
+                if (metode !== 'tunai') {
+                  setDibayar(newTotal)
+                } else if (dibayar === total || dibayar < newTotal) {
+                  setDibayar(Math.ceil(newTotal / 5000) * 5000)
+                }
+              }}
+              placeholder="0"
+              className="font-bold text-slate-800 text-base"
+            />
           </div>
 
           <div>
@@ -791,10 +831,10 @@ export function KasirPOS() {
       {/* Modal struk */}
       <Modal
         open={!!struk}
-        onClose={() => { setStruk(null); focusBarcode() }}
+        onClose={() => { setStruk(null); focusSearch() }}
         title="Transaksi Berhasil"
         lebar="max-w-md"
-        footer={<Button onClick={() => { setStruk(null); focusBarcode() }}>Transaksi Baru</Button>}
+        footer={<Button onClick={() => { setStruk(null); focusSearch() }}>Transaksi Baru</Button>}
       >
         {struk && <StrukView trx={struk} namaKasir={currentUser?.nama ?? ''} />}
       </Modal>
@@ -866,58 +906,7 @@ export function KasirPOS() {
         })()}
       </Modal>
 
-      {/* Modal QR Code untuk Multi-Device Demo */}
-      <Modal
-        open={qrModalOpen}
-        onClose={() => setQrModalOpen(false)}
-        title="Hubungkan Perangkat Kasir Tambahan"
-        lebar="max-w-md"
-      >
-        <div className="space-y-4 text-center">
-          <p className="text-xs text-slate-600">
-            Arahkan kamera HP ke QR Code di bawah untuk membuka sistem kasir di HP Anda.
-            Pastikan HP dan laptop terhubung ke <b>WiFi / Hotspot yang sama</b>.
-          </p>
 
-          <div className="mx-auto flex w-fit flex-col items-center rounded-xl border border-slate-200 bg-slate-50 p-4 shadow-xs">
-            <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
-                typeof window !== 'undefined' ? window.location.href : '',
-              )}`}
-              alt="QR Code Akses HP"
-              className="h-44 w-44 rounded-lg bg-white p-1"
-            />
-            <p className="mt-3 font-mono text-xs font-semibold text-brand-700 break-all">
-              {typeof window !== 'undefined' ? window.location.href : ''}
-            </p>
-          </div>
-
-          <div className="rounded-lg bg-slate-50 p-3 text-left text-xs text-slate-700 border border-slate-200">
-            <p className="font-semibold text-slate-800">Panduan Sinkronisasi Multi-Kasir:</p>
-            <ul className="mt-1 list-disc pl-4 space-y-1 text-[11px] text-slate-600">
-              <li>Buka tautan ini pada perangkat kasir kedua.</li>
-              <li>Setiap transaksi yang diselesaikan langsung memperbarui sisa stok secara realtime di semua layar.</li>
-            </ul>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              variant="secondary"
-              onClick={() => {
-                if (typeof window !== 'undefined') {
-                  navigator.clipboard.writeText(window.location.href)
-                  push({ tipe: 'sukses', judul: 'Link Disalin', pesan: window.location.href })
-                }
-              }}
-            >
-              Salin URL
-            </Button>
-            <Button variant="primary" onClick={() => setQrModalOpen(false)}>
-              Tutup
-            </Button>
-          </div>
-        </div>
-      </Modal>
 
       {/* Modal Pemilihan Satuan Bertingkat & Varian */}
       <Modal
@@ -967,8 +956,12 @@ export function KasirPOS() {
                       isPecahan: false,
                     }
 
+                    const hasTier1 = varianModalProduk.satuanBertingkat.some(
+                      (t) => t.multiplierToBase === 1
+                    )
+
                     const allTiers = [
-                      baseItem,
+                      ...(hasTier1 ? [] : [baseItem]),
                       ...varianModalProduk.satuanBertingkat.map((t) => ({ ...t, isBase: false as const })),
                     ].sort((a, b) => a.multiplierToBase - b.multiplierToBase)
 
@@ -992,11 +985,11 @@ export function KasirPOS() {
                               </span>
                               {tier.isBase ? (
                                 <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-100">
-                                  Satuan Dasar / Eceran
+                                  Satuan Dasar / Eceran (1 {varianModalProduk.satuan})
                                 </span>
                               ) : tier.isPecahan ? (
                                 <span className="rounded bg-sky-50 px-1.5 py-0.5 text-[10px] font-semibold text-sky-700 border border-sky-200">
-                                  Pecahan {tier.rasio === 0.5 ? '1/2' : tier.rasio === 0.25 ? '1/4' : `${Math.round((tier.rasio || 0) * 100)}%`} {tier.indukSatuan} ({tier.multiplierToBase} {varianModalProduk.satuan})
+                                  Pecahan {tier.rasio === 0.5 ? '1/2' : tier.rasio === 0.25 ? '1/4' : `${tier.multiplierToBase} ${varianModalProduk.satuan}`} {tier.indukSatuan ? `(${tier.indukSatuan})` : ''}
                                 </span>
                               ) : (
                                 <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-600">
@@ -1009,7 +1002,7 @@ export function KasirPOS() {
                             </p>
                             <p className="text-[11px] text-slate-400">
                               {cukup
-                                ? `Tersedia maks. ~${maxQuota} ${tier.namaSatuan}`
+                                ? `Tersedia maks. ~${angka(maxQuota)} ${tier.namaSatuan}`
                                 : `Stok tidak cukup (butuh ${tier.multiplierToBase} ${varianModalProduk.satuan})`}
                             </p>
                           </div>

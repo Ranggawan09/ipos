@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useSessionStore } from '@/store/useSessionStore'
-import { Topbar, SyncFooter } from './Topbar'
+import { Topbar, TopbarActions, SyncFooter } from './Topbar'
 
 const ICONS: Record<string, string> = {
   dashboard: 'M3 12l9-9 9 9M5 10v10h5v-6h4v6h5V10',
@@ -179,43 +179,41 @@ const KASIR_NAV: NavItem[] = [
 
 export function KasirLayout() {
   const loc = useLocation()
-  const aktif = [...KASIR_NAV].sort((a, b) => b.to.length - a.to.length).find((i) =>
-    loc.pathname === i.to || loc.pathname.startsWith(i.to + '/'),
-  )
   const isPos = loc.pathname === '/kasir'
 
   return (
     <div className="flex h-dvh w-full flex-col overflow-hidden bg-slate-100">
-      <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-3 py-2 sm:px-4">
-        <div className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-xs font-bold text-white">
-            POS
-          </span>
-          <div>
-            <p className="text-sm font-semibold text-slate-800">Toko Pasar Jaya</p>
-            <p className="text-[10px] text-slate-400">Aplikasi Kasir</p>
+      <header className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-3 py-1.5 sm:px-4">
+        <div className="flex items-center gap-3 sm:gap-6">
+          <div className="flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-xs font-bold text-white shadow-xs">
+              POS
+            </span>
+            <div className="hidden sm:block">
+              <p className="text-xs font-bold text-slate-800 leading-tight">Toko Pasar Jaya</p>
+              <p className="text-[10px] text-slate-400">Aplikasi Kasir</p>
+            </div>
           </div>
+          <nav className="flex gap-1">
+            {KASIR_NAV.map((n) => (
+              <NavLink
+                key={n.to}
+                to={n.to}
+                end={n.to === '/kasir'}
+                className={({ isActive }) =>
+                  `flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition sm:px-3 sm:py-1.5 ${
+                    isActive ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-100'
+                  }`
+                }
+              >
+                <Icon name={n.icon} size={15} />
+                <span>{n.label}</span>
+              </NavLink>
+            ))}
+          </nav>
         </div>
-        <nav className="flex gap-1">
-          {KASIR_NAV.map((n) => (
-            <NavLink
-              key={n.to}
-              to={n.to}
-              end={n.to === '/kasir'}
-              className={({ isActive }) =>
-                `flex flex-col items-center rounded-lg px-3 py-1 text-[11px] font-medium transition sm:px-4 sm:py-1.5 ${
-                  isActive ? 'bg-emerald-600 text-white' : 'text-slate-500 hover:bg-slate-100'
-                }`
-              }
-            >
-              <Icon name={n.icon} size={16} />
-              {n.label}
-            </NavLink>
-          ))}
-        </nav>
-        <span className="hidden text-[11px] font-medium text-slate-400 md:block">{aktif?.label ?? 'Kasir'}</span>
-      </div>
-      <Topbar judul={aktif?.label ?? 'Kasir'} />
+        <TopbarActions />
+      </header>
       <main className={`flex-1 ${isPos ? 'overflow-hidden' : 'overflow-y-auto p-4 lg:p-6'}`}>
         <Outlet />
       </main>

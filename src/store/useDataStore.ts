@@ -33,6 +33,7 @@ import {
   isoDaysAgo,
 } from '@/data/seed'
 import { syncService } from '@/lib/syncService'
+import { rupiah } from '@/lib/format'
 import { useToast } from './useToast'
 
 // ---------------------------------------------------------------------------
@@ -109,6 +110,7 @@ export type DataState = {
     metode: 'tunai' | 'kredit'
     jatuhTempo?: string
     userId: string
+    updateHargaModal?: boolean
   }) => void
   barangKeluar: (input: {
     produkId: string
@@ -267,7 +269,7 @@ export const useDataStore = create<DataState>()(
       },
       hapusSupplier: (id) => set({ supplier: get().supplier.filter((s) => s.id !== id) }),
 
-      terimaBarang: ({ supplierId, items, metode, jatuhTempo, userId }) => {
+      terimaBarang: ({ supplierId, items, metode, jatuhTempo, userId, updateHargaModal = true }) => {
         const produks = get().produk
         const now = new Date().toISOString()
         const pergerakanBaru: PergerakanStok[] = []
@@ -285,11 +287,50 @@ export const useDataStore = create<DataState>()(
             p.tglExpired = item.tglExpired
           }
 
+          // Update otomatis harga modal (hargaBeli) produk di master data
+          if (updateHargaModal && item.hargaBeli && item.hargaBeli > 0) {
+            const hargaBeliDasarBaru = Math.round(item.hargaBeli / mult)
+            p.hargaBeli = hargaBeliDasarBaru
+
+            // Sinkronisasi ke seluruh tingkatan satuan bertingkat & pecahan (jika ada)
+            if (p.satuanBertingkat && p.satuanBertingkat.length > 0) {
+              p.satuanBertingkat = p.satuanBertingkat.map((tier) => {
+                let tierHargaBeli = tier.hargaBeli
+                // Jika satuan tier ini yang langsung dibeli dalam penerimaan
+                if (
+                  (item.satuanId && item.satuanId === tier.id) ||
+                  (item.satuan && item.satuan.toLowerCase() === tier.namaSatuan.toLowerCase())
+                ) {
+                  tierHargaBeli = item.hargaBeli
+                } else {
+                  // Satuan bertingkat lainnya disesuaikan proporsional dengan harga beli dasar baru
+                  tierHargaBeli = Math.round(hargaBeliDasarBaru * tier.multiplierToBase)
+                }
+
+                // Hitung ulang margin persen agar tetap sinkron dengan harga jual saat ini
+                const marginPersen = tierHargaBeli > 0
+                  ? Math.round(((tier.hargaJual - tierHargaBeli) / tierHargaBeli) * 100 * 10) / 10
+                  : 0
+
+                return {
+                  ...tier,
+                  hargaBeli: tierHargaBeli,
+                  marginPersen,
+                }
+              })
+            }
+          }
+
+          if (supplierId && !p.supplierId) {
+            p.supplierId = supplierId
+          }
+
           const satuanKet = item.satuan && item.satuan !== p.satuan
             ? `${item.qty} ${item.satuan} (${stokMasuk} ${p.satuan || 'pcs'})`
             : `${stokMasuk} ${p.satuan || 'pcs'}`
 
           const expKet = item.tglExpired ? ` [Exp: ${item.tglExpired}]` : ''
+          const hargaKet = item.hargaBeli > 0 ? ` @${rupiah(item.hargaBeli)}/${item.satuan || p.satuan || 'pcs'}` : ''
 
           pergerakanBaru.push({
             id: `MOV-IN-${Date.now()}-${idx}`,
@@ -298,7 +339,7 @@ export const useDataStore = create<DataState>()(
             jumlah: stokMasuk,
             stokSebelum: sebelum,
             stokSesudah: p.stok,
-            keterangan: `Penerimaan barang dari supplier: ${satuanKet}${expKet}`,
+            keterangan: `Penerimaan barang dari supplier: ${satuanKet}${hargaKet}${expKet}`,
             userId,
             waktu: now,
           })
@@ -352,6 +393,19 @@ export const useDataStore = create<DataState>()(
           penerimaan: [penerimaan, ...get().penerimaan],
           hutang: hutangBaru,
         })
+
+        syncService.broadcastStockMutation(
+          items.map((i) => {
+            const p = produksBaru.find((x) => x.id === i.produkId)
+            return {
+              produkId: i.produkId,
+              namaProduk: p?.nama ?? '-',
+              qty: i.qty * (i.multiplier || 1),
+              sisaStok: p?.stok ?? 0,
+            }
+          }),
+          'Penerimaan Barang',
+        )
       },
 
       barangKeluar: ({ produkId, jumlah, jenis, keterangan, userId }) => {
@@ -790,6 +844,11 @@ export const useDataStore = create<DataState>()(
           const sebelum = p.stok
           const potongStok = d.bobot ? d.bobot * d.qty : d.qty
           p.stok = Math.max(0, sebelum - potongStok)
+          const satuanKet = d.namaVarian
+            ? ` (${d.namaVarian} x${d.qty})`
+            : d.satuan && d.satuan !== p.satuan
+            ? ` (${d.qty} ${d.satuan})`
+            : ''
           pergerakanBaru.push({
             id: `MOV-SALE-${Date.now()}-${idx}`,
             produkId: p.id,
@@ -797,7 +856,7 @@ export const useDataStore = create<DataState>()(
             jumlah: -potongStok,
             stokSebelum: sebelum,
             stokSesudah: p.stok,
-            keterangan: `Penjualan ${trx.nomor}${d.namaVarian ? ` (${d.namaVarian} x${d.qty})` : ''}`,
+            keterangan: `Penjualan ${trx.nomor}${satuanKet}`,
             referensiId: trx.id,
             userId: kasirId,
             waktu: now,
@@ -850,6 +909,11 @@ export const useDataStore = create<DataState>()(
           const sebelum = p.stok
           const balikStok = d.bobot ? d.bobot * d.qty : d.qty
           p.stok = sebelum + balikStok
+          const satuanKet = d.namaVarian
+            ? ` (${d.namaVarian} x${d.qty})`
+            : d.satuan && d.satuan !== p.satuan
+            ? ` (${d.qty} ${d.satuan})`
+            : ''
           pergerakanBaru.push({
             id: `MOV-VOID-${Date.now()}-${idx}`,
             produkId: p.id,
@@ -857,7 +921,7 @@ export const useDataStore = create<DataState>()(
             jumlah: balikStok,
             stokSebelum: sebelum,
             stokSesudah: p.stok,
-            keterangan: `Void transaksi ${trx.nomor}${d.namaVarian ? ` (${d.namaVarian} x${d.qty})` : ''}`,
+            keterangan: `Void transaksi ${trx.nomor}${satuanKet}`,
             referensiId: trx.id,
             userId: adminId,
             waktu: new Date().toISOString(),
@@ -982,15 +1046,172 @@ export const useDataStore = create<DataState>()(
             state.daftarSatuan = Array.from(setS)
           }
 
-          const beras = state.produk.find((p) => p.nama === 'Beras Rojolele Curah')
-          if (beras && (!beras.varian || beras.varian.length === 0)) {
+          // Setup / Migrasi Beras Curah: satuan bertingkat sak & kg, pecahan 5kg, 2kg, 1kg
+          const berasTiers = [
+            {
+              id: 'STB-BRS-SAK',
+              namaSatuan: 'sak',
+              satuanTurunan: 'kg',
+              isi: 50,
+              multiplierToBase: 50,
+              hargaBeli: 600000,
+              marginPersen: 10,
+              hargaJual: 660000,
+              isPecahan: false,
+            },
+            {
+              id: 'STB-BRS-5KG',
+              namaSatuan: '5kg',
+              satuanTurunan: 'kg',
+              isi: 5,
+              multiplierToBase: 5,
+              hargaBeli: 60000,
+              marginPersen: 15,
+              hargaJual: 69000,
+              isPecahan: true,
+              indukSatuan: 'sak',
+              rasio: 0.1,
+            },
+            {
+              id: 'STB-BRS-2KG',
+              namaSatuan: '2kg',
+              satuanTurunan: 'kg',
+              isi: 2,
+              multiplierToBase: 2,
+              hargaBeli: 24000,
+              marginPersen: 18,
+              hargaJual: 28500,
+              isPecahan: true,
+              indukSatuan: 'sak',
+              rasio: 0.04,
+            },
+            {
+              id: 'STB-BRS-1KG',
+              namaSatuan: '1kg',
+              satuanTurunan: 'kg',
+              isi: 1,
+              multiplierToBase: 1,
+              hargaBeli: 12000,
+              marginPersen: 20,
+              hargaJual: 14500,
+              isPecahan: true,
+              indukSatuan: 'sak',
+              rasio: 0.02,
+            },
+          ]
+
+          let beras = state.produk.find(
+            (p) => p.nama === 'Beras Curah' || p.nama === 'Beras Rojolele Curah' || p.nama === 'Beras Curah 50kg',
+          )
+          if (beras) {
+            beras.nama = 'Beras Curah'
             beras.satuan = 'kg'
-            beras.varian = [
-              { id: 'VRN-BRC-5', nama: '5 kg', bobot: 5, hargaJual: 70000 },
-              { id: 'VRN-BRC-2', nama: '2 kg', bobot: 2, hargaJual: 30000 },
-              { id: 'VRN-BRC-1', nama: '1 kg', bobot: 1, hargaJual: 15000 },
-            ]
-            if (beras.stok <= 0) beras.stok = 50
+            beras.hargaBeli = 12000
+            beras.hargaJual = 14500
+            beras.varian = undefined
+            beras.satuanBertingkat = berasTiers
+            if (!beras.stok || beras.stok <= 0) beras.stok = 250
+          } else {
+            const nextId = `PRD-BRS-CURAH-${Date.now()}`
+            state.produk.unshift({
+              id: nextId,
+              sku: 'SKU-BRS-001',
+              barcode: '8991001001',
+              nama: 'Beras Curah',
+              kategoriId: state.kategori[0]?.id || 'KAT-01',
+              supplierId: state.supplier[0]?.id,
+              satuan: 'kg',
+              hargaBeli: 12000,
+              hargaJual: 14500,
+              stok: 250,
+              stokMinimum: 25,
+              aktif: true,
+              satuanBertingkat: berasTiers,
+            })
+          }
+
+          // Setup / Migrasi Gula Pasir Curah: satuan bertingkat sak & kg, pecahan 1kg, 1/2kg, 1/4kg
+          const gulaTiers = [
+            {
+              id: 'STB-GLA-SAK',
+              namaSatuan: 'sak',
+              satuanTurunan: 'kg',
+              isi: 50,
+              multiplierToBase: 50,
+              hargaBeli: 700000,
+              marginPersen: 10,
+              hargaJual: 770000,
+              isPecahan: false,
+            },
+            {
+              id: 'STB-GLA-1KG',
+              namaSatuan: '1kg',
+              satuanTurunan: 'kg',
+              isi: 1,
+              multiplierToBase: 1,
+              hargaBeli: 14000,
+              marginPersen: 20,
+              hargaJual: 17000,
+              isPecahan: true,
+              indukSatuan: 'sak',
+              rasio: 0.02,
+            },
+            {
+              id: 'STB-GLA-500G',
+              namaSatuan: '1/2kg',
+              satuanTurunan: 'kg',
+              isi: 0.5,
+              multiplierToBase: 0.5,
+              hargaBeli: 7000,
+              marginPersen: 25,
+              hargaJual: 8750,
+              isPecahan: true,
+              indukSatuan: 'kg',
+              rasio: 0.5,
+            },
+            {
+              id: 'STB-GLA-250G',
+              namaSatuan: '1/4kg',
+              satuanTurunan: 'kg',
+              isi: 0.25,
+              multiplierToBase: 0.25,
+              hargaBeli: 3500,
+              marginPersen: 28,
+              hargaJual: 4500,
+              isPecahan: true,
+              indukSatuan: 'kg',
+              rasio: 0.25,
+            },
+          ]
+
+          let gula = state.produk.find(
+            (p) => p.nama === 'Gula Pasir Curah' || p.nama === 'Gula Pasir Curah 50kg',
+          )
+          if (gula) {
+            gula.nama = 'Gula Pasir Curah'
+            gula.satuan = 'kg'
+            gula.hargaBeli = 14000
+            gula.hargaJual = 17000
+            gula.varian = undefined
+            gula.satuanBertingkat = gulaTiers
+            if (!gula.stok || gula.stok <= 0) gula.stok = 200
+          } else {
+            const nextId = `PRD-GLA-CURAH-${Date.now()}`
+            state.produk.unshift({
+              id: nextId,
+              sku: 'SKU-GLA-001',
+              barcode: '8991001002',
+              nama: 'Gula Pasir Curah',
+              kategoriId: state.kategori[0]?.id || 'KAT-01',
+              supplierId: state.supplier[0]?.id,
+              satuan: 'kg',
+              hargaBeli: 14000,
+              hargaJual: 17000,
+              stok: 200,
+              stokMinimum: 20,
+              aktif: true,
+              satuanBertingkat: gulaTiers,
+            })
           }
 
           const kopi = state.produk.find((p) => p.nama === 'Kopi Sachet')

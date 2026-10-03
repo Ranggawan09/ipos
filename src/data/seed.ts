@@ -74,17 +74,17 @@ const TEMPLATE: Record<string, [string, string, number][]> = {
     ['Tempe', 'papan', 5000], ['Tahu Putih', 'bungkus', 6000],
     ['Beras Ketan 1kg', 'pcs', 16000],
     // ── CURAH: Gula ──
+    ['Gula Pasir Curah', 'kg', 14000],
     ['Gula Pasir Curah 50kg', 'sak', 350000],
     ['Gula Pasir Eceran 1kg', 'pcs', 7000],
     ['Gula Pasir Eceran 500g', 'pcs', 3500],
     ['Gula Pasir Eceran 250g', 'pcs', 1750],
     // ── CURAH: Beras ──
+    ['Beras Curah', 'kg', 12000],
     ['Beras Curah 50kg', 'sak', 600000],
     ['Beras Eceran 5kg', 'pcs', 60000],
     ['Beras Eceran 2kg', 'pcs', 24000],
     ['Beras Eceran 1kg', 'pcs', 12000],
-    // ── VARIAN BOBOT: Beras Rojolele ──
-    ['Beras Rojolele Curah', 'kg', 12000],
     // ── CURAH: Minyak Goreng ──
     ['Minyak Goreng Curah 18L', 'jerigen', 270000],
     ['Minyak Goreng Eceran 1L', 'botol', 15000],
@@ -235,13 +235,127 @@ export function buildProduk(): Produk[] {
           : undefined,
       }
 
-      // Produk varian bobot: Beras Rojolele Curah
-      if (nama === 'Beras Rojolele Curah') {
-        prod.stok = 50
-        prod.varian = [
-          { id: 'VRN-BRC-5', nama: '5 kg', bobot: 5, hargaJual: 70000 },
-          { id: 'VRN-BRC-2', nama: '2 kg', bobot: 2, hargaJual: 30000 },
-          { id: 'VRN-BRC-1', nama: '1 kg', bobot: 1, hargaJual: 15000 },
+      // Produk satuan bertingkat & pecahan: Beras Curah
+      if (nama === 'Beras Curah' || nama === 'Beras Rojolele Curah') {
+        prod.nama = 'Beras Curah'
+        prod.stok = 250
+        prod.stokMinimum = 25
+        prod.hargaBeli = 12000
+        prod.hargaJual = 14500
+        prod.satuan = 'kg'
+        prod.satuanBertingkat = [
+          {
+            id: 'STB-BRS-SAK',
+            namaSatuan: 'sak',
+            satuanTurunan: 'kg',
+            isi: 50,
+            multiplierToBase: 50,
+            hargaBeli: 600000,
+            marginPersen: 10,
+            hargaJual: 660000,
+            isPecahan: false,
+          },
+          {
+            id: 'STB-BRS-5KG',
+            namaSatuan: '5kg',
+            satuanTurunan: 'kg',
+            isi: 5,
+            multiplierToBase: 5,
+            hargaBeli: 60000,
+            marginPersen: 15,
+            hargaJual: 69000,
+            isPecahan: true,
+            indukSatuan: 'sak',
+            rasio: 0.1,
+          },
+          {
+            id: 'STB-BRS-2KG',
+            namaSatuan: '2kg',
+            satuanTurunan: 'kg',
+            isi: 2,
+            multiplierToBase: 2,
+            hargaBeli: 24000,
+            marginPersen: 18,
+            hargaJual: 28500,
+            isPecahan: true,
+            indukSatuan: 'sak',
+            rasio: 0.04,
+          },
+          {
+            id: 'STB-BRS-1KG',
+            namaSatuan: '1kg',
+            satuanTurunan: 'kg',
+            isi: 1,
+            multiplierToBase: 1,
+            hargaBeli: 12000,
+            marginPersen: 20,
+            hargaJual: 14500,
+            isPecahan: true,
+            indukSatuan: 'sak',
+            rasio: 0.02,
+          },
+        ]
+      }
+
+      // Produk satuan bertingkat & pecahan: Gula Pasir Curah
+      if (nama === 'Gula Pasir Curah' || nama === 'Gula Pasir Curah 50kg') {
+        prod.nama = 'Gula Pasir Curah'
+        prod.satuan = 'kg'
+        prod.stok = 200
+        prod.stokMinimum = 20
+        prod.hargaBeli = 14000
+        prod.hargaJual = 17000
+        prod.satuanBertingkat = [
+          {
+            id: 'STB-GLA-SAK',
+            namaSatuan: 'sak',
+            satuanTurunan: 'kg',
+            isi: 50,
+            multiplierToBase: 50,
+            hargaBeli: 700000,
+            marginPersen: 10,
+            hargaJual: 770000,
+            isPecahan: false,
+          },
+          {
+            id: 'STB-GLA-1KG',
+            namaSatuan: '1kg',
+            satuanTurunan: 'kg',
+            isi: 1,
+            multiplierToBase: 1,
+            hargaBeli: 14000,
+            marginPersen: 20,
+            hargaJual: 17000,
+            isPecahan: true,
+            indukSatuan: 'sak',
+            rasio: 0.02,
+          },
+          {
+            id: 'STB-GLA-500G',
+            namaSatuan: '1/2kg',
+            satuanTurunan: 'kg',
+            isi: 0.5,
+            multiplierToBase: 0.5,
+            hargaBeli: 7000,
+            marginPersen: 25,
+            hargaJual: 8750,
+            isPecahan: true,
+            indukSatuan: 'kg',
+            rasio: 0.5,
+          },
+          {
+            id: 'STB-GLA-250G',
+            namaSatuan: '1/4kg',
+            satuanTurunan: 'kg',
+            isi: 0.25,
+            multiplierToBase: 0.25,
+            hargaBeli: 3500,
+            marginPersen: 28,
+            hargaJual: 4500,
+            isPecahan: true,
+            indukSatuan: 'kg',
+            rasio: 0.25,
+          },
         ]
       }
 

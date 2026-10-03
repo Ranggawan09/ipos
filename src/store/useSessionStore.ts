@@ -204,6 +204,8 @@ export const useSessionStore = create<SessionState>()(
                 hargaBeli: c.hargaBeli,
                 qty: c.qty,
                 satuan: c.satuan || 'pcs',
+                satuanId: c.satuanId,
+                multiplier: c.multiplier,
                 diskonItem: c.diskonItem,
                 subtotal,
                 varianId: c.varianId,
