@@ -1,4 +1,6 @@
-// Parser & ekspor CSV sederhana tanpa dependensi eksternal.
+import * as XLSX from 'xlsx'
+
+// Parser & ekspor CSV dan Excel (.xlsx / .xls)
 
 export function parseCSV(text: string): string[][] {
   const rows: string[][] = []
@@ -37,81 +39,30 @@ export function parseCSV(text: string): string[][] {
   return rows.filter((r) => r.some((x) => x.trim() !== ''))
 }
 
-export function parseXLS(content: string): string[][] {
-  const trimmed = content.trim()
-  if (!trimmed) return []
-
-  // 1. Cek jika format XML Spreadsheet (Excel XML 2003)
-  if (trimmed.includes('<Workbook') || (trimmed.includes('<?xml') && trimmed.includes('<Table>')) || trimmed.includes('xmlns:ss=')) {
-    try {
-      const parser = new DOMParser()
-      const xmlDoc = parser.parseFromString(trimmed, 'text/xml')
-      let rows = Array.from(xmlDoc.querySelectorAll('Row, row'))
-      if (!rows.length && xmlDoc.getElementsByTagNameNS) {
-        rows = Array.from(xmlDoc.getElementsByTagNameNS('*', 'Row'))
-        if (!rows.length) rows = Array.from(xmlDoc.getElementsByTagNameNS('*', 'row'))
-      }
-      if (rows.length > 0) {
-        return rows
-          .map((row) => {
-            let cells = Array.from(row.querySelectorAll('Cell, cell'))
-            if (!cells.length && row.getElementsByTagNameNS) {
-              cells = Array.from(row.getElementsByTagNameNS('*', 'Cell'))
-              if (!cells.length) cells = Array.from(row.getElementsByTagNameNS('*', 'cell'))
-            }
-            const rowData: string[] = []
-            let colIdx = 0
-            for (const cell of cells) {
-              const ssIndex =
-                cell.getAttribute('ss:Index') ||
-                cell.getAttribute('Index') ||
-                cell.getAttributeNS('urn:schemas-microsoft-com:office:spreadsheet', 'Index')
-              if (ssIndex) {
-                const targetIdx = parseInt(ssIndex, 10) - 1
-                while (colIdx < targetIdx) {
-                  rowData.push('')
-                  colIdx++
-                }
-              }
-              let dataEl = cell.querySelector('Data, data')
-              if (!dataEl && cell.getElementsByTagNameNS) {
-                const dataList = cell.getElementsByTagNameNS('*', 'Data')
-                if (dataList.length > 0) dataEl = dataList[0]
-              }
-              const text = (dataEl ? dataEl.textContent : cell.textContent) ?? ''
-              rowData.push(text.trim())
-              colIdx++
-            }
-            return rowData
-          })
-          .filter((r) => r.some((c) => c !== ''))
-      }
-    } catch {
-      // Fallback
+export function parseWorkbook(data: ArrayBuffer | Uint8Array | string): string[][] {
+  if (!data) return []
+  try {
+    const wb =
+      typeof data === 'string'
+        ? XLSX.read(data, { type: 'string' })
+        : XLSX.read(data, { type: 'array' })
+    const firstSheetName = wb.SheetNames[0]
+    if (!firstSheetName) return []
+    const sheet = wb.Sheets[firstSheetName]
+    const rows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '' })
+    return rows
+      .map((r) => r.map((c) => String(c ?? '').trim()))
+      .filter((r) => r.some((c) => c !== ''))
+  } catch {
+    if (typeof data === 'string') {
+      return parseCSV(data)
     }
+    return []
   }
+}
 
-  // 2. Cek jika format HTML Table (.xls berbasis tag table)
-  if (trimmed.includes('<table') || trimmed.includes('<tr')) {
-    try {
-      const parser = new DOMParser()
-      const htmlDoc = parser.parseFromString(trimmed, 'text/html')
-      const trs = Array.from(htmlDoc.querySelectorAll('tr'))
-      if (trs.length > 0) {
-        return trs
-          .map((tr) => {
-            const cells = Array.from(tr.querySelectorAll('th, td'))
-            return cells.map((c) => (c.textContent ?? '').trim())
-          })
-          .filter((r) => r.some((c) => c !== ''))
-      }
-    } catch {
-      // Fallback
-    }
-  }
-
-  // 3. Fallback: parse sebagai CSV / TSV
-  return parseCSV(content)
+export function parseXLS(content: string | ArrayBuffer): string[][] {
+  return parseWorkbook(content)
 }
 
 export function toCSV(headers: string[], rows: (string | number)[][]): string {
@@ -226,11 +177,25 @@ export function downloadFile(filename: string, content: string, mime = 'applicat
   URL.revokeObjectURL(url)
 }
 
+export function exportXLSX(filename: string, headers: string[], rows: (string | number)[][], sheetName = 'Laporan') {
+  const wb = XLSX.utils.book_new()
+  const cleanSheetName = (sheetName || 'Sheet1').replace(/[/\\?*:[\]]/g, '').slice(0, 31) || 'Sheet1'
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
+  ws['!cols'] = headers.map((h) => ({ wch: Math.max(12, h.length + 3) }))
+  XLSX.utils.book_append_sheet(wb, ws, cleanSheetName)
+  const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+  const xlsxName = filename.replace(/\.(csv|xls|xlsx)$/i, '') + '.xlsx'
+  const blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = xlsxName
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export function exportXLS(filename: string, headers: string[], rows: (string | number)[][], sheetName = 'Laporan') {
-  const xlsName = filename.replace(/\.csv$/i, '.xls').endsWith('.xls')
-    ? filename.replace(/\.csv$/i, '.xls')
-    : `${filename}.xls`
-  downloadFile(xlsName, toXLS(headers, rows, sheetName), 'application/vnd.ms-excel;charset=utf-8;')
+  exportXLSX(filename, headers, rows, sheetName)
 }
 
 export function exportRawCSV(filename: string, headers: string[], rows: (string | number)[][]) {
@@ -238,5 +203,5 @@ export function exportRawCSV(filename: string, headers: string[], rows: (string 
 }
 
 export function exportCSV(filename: string, headers: string[], rows: (string | number)[][]) {
-  exportXLS(filename, headers, rows)
+  exportXLSX(filename, headers, rows)
 }

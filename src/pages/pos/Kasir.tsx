@@ -12,7 +12,7 @@ function BukaShift() {
   const { bukaShift } = useDataStore()
   const { currentUser, setShiftId, selectedShiftNomor, setSelectedShiftNomor } = useSessionStore()
   const push = useToast((s) => s.push)
-  const [saldo, setSaldo] = useState(200000)
+  const [saldo, setSaldo] = useState(100000)
   const [shiftNo, setShiftNo] = useState<1 | 2>((selectedShiftNomor === 2 ? 2 : 1))
 
   const buka = () => {
@@ -46,11 +46,10 @@ function BukaShift() {
                 key={num}
                 type="button"
                 onClick={() => setShiftNo(num)}
-                className={`flex flex-col items-center justify-center border py-2.5 text-xs font-semibold transition ${
-                  shiftNo === num
+                className={`flex flex-col items-center justify-center border py-2.5 text-xs font-semibold transition ${shiftNo === num
                     ? 'border-emerald-600 bg-emerald-600 text-white shadow-xs'
                     : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
-                }`}
+                  }`}
               >
                 <span>Shift {num}</span>
                 <span className={`text-[10px] ${shiftNo === num ? 'text-emerald-100' : 'text-slate-400'}`}>
@@ -496,8 +495,7 @@ export function KasirPOS() {
                 <button
                   key={p.id}
                   onClick={() => klikProduk(p)}
-                  className={`flex flex-col rounded-xl border p-3 text-left transition active:scale-[0.98] ${
-                    isHabis
+                  className={`flex flex-col rounded-xl border p-3 text-left transition active:scale-[0.98] ${isHabis
                       ? 'border-rose-200 bg-rose-50/40 opacity-80 hover:border-rose-400 hover:opacity-100'
                       : isRecent
                         ? 'border-amber-400 bg-amber-50/70 ring-2 ring-amber-400 shadow-md animate-pulse'
@@ -506,7 +504,7 @@ export function KasirPOS() {
                           : hasVarian
                             ? 'border-indigo-200 bg-white hover:border-indigo-400 hover:shadow-md'
                             : 'border-slate-200 bg-white hover:border-emerald-400 hover:shadow-md'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-start justify-between gap-1.5">
                     <p className={`line-clamp-2 min-h-[34px] text-xs font-medium ${isHabis ? 'text-slate-600' : 'text-slate-700'}`}>{p.nama}</p>
@@ -564,15 +562,14 @@ export function KasirPOS() {
                   <div className="mt-1 flex items-center justify-between">
                     <span className="font-mono text-[10px] text-slate-400">{p.sku}</span>
                     <span
-                      className={`text-[10px] font-medium ${
-                        isHabis
+                      className={`text-[10px] font-medium ${isHabis
                           ? 'font-bold text-rose-600'
                           : isRecent
                             ? 'font-bold text-amber-700'
                             : p.stok <= p.stokMinimum
                               ? 'text-amber-600'
                               : 'text-slate-400'
-                      }`}
+                        }`}
                     >
                       {isHabis ? `Habis (0 ${p.satuan || 'pcs'})` : `stok ${p.stok} ${p.satuan || 'pcs'}`}
                     </span>
@@ -604,9 +601,8 @@ export function KasirPOS() {
 
       {/* Kanan: keranjang (fullscreen di mobile jika aktif, kolom di tablet & desktop) */}
       <div
-        className={`flex flex-col border-l border-slate-200 bg-white md:w-[330px] lg:w-[370px] xl:w-[400px] shrink-0 ${
-          mobileView === 'catalog' ? 'hidden md:flex' : 'flex flex-1 w-full md:flex-initial'
-        }`}
+        className={`flex flex-col border-l border-slate-200 bg-white md:w-[330px] lg:w-[370px] xl:w-[400px] shrink-0 ${mobileView === 'catalog' ? 'hidden md:flex' : 'flex flex-1 w-full md:flex-initial'
+          }`}
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
           <div className="flex items-center gap-2">
@@ -871,11 +867,10 @@ export function KasirPOS() {
                       type="button"
                       disabled={disabled}
                       onClick={() => pilihVarian(p, v)}
-                      className={`flex items-center justify-between rounded-xl border-2 px-4 py-3 text-left transition ${
-                        disabled
+                      className={`flex items-center justify-between rounded-xl border-2 px-4 py-3 text-left transition ${disabled
                           ? 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-60'
                           : 'border-slate-200 bg-white hover:border-indigo-500 hover:bg-indigo-50 hover:shadow-md active:scale-[0.98]'
-                      }`}
+                        }`}
                     >
                       <div>
                         <p className="text-sm font-bold text-slate-800">{v.nama}</p>
@@ -972,11 +967,10 @@ export function KasirPOS() {
                       return (
                         <div
                           key={tier.id}
-                          className={`flex items-center justify-between rounded-xl border p-3.5 transition ${
-                            cukup
+                          className={`flex items-center justify-between rounded-xl border p-3.5 transition ${cukup
                               ? 'border-slate-200 bg-white hover:border-emerald-400 hover:shadow-xs'
                               : 'border-slate-200 bg-slate-50/70 opacity-60'
-                          }`}
+                            }`}
                         >
                           <div>
                             <div className="flex items-center gap-2">
@@ -1039,11 +1033,10 @@ export function KasirPOS() {
                     return (
                       <div
                         key={v.id}
-                        className={`flex items-center justify-between rounded-xl border p-3.5 transition ${
-                          cukup
+                        className={`flex items-center justify-between rounded-xl border p-3.5 transition ${cukup
                             ? 'border-slate-200 bg-white hover:border-emerald-400 hover:shadow-xs'
                             : 'border-slate-200 bg-slate-50/70 opacity-60'
-                        }`}
+                          }`}
                       >
                         <div>
                           <div className="flex items-center gap-2">

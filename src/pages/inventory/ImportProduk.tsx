@@ -2,50 +2,209 @@ import { useState, useRef } from 'react'
 import type { Produk as TProduk, SatuanBertingkat } from '@/types'
 import { useDataStore } from '@/store/useDataStore'
 import { useToast } from '@/store/useToast'
-import { exportXLS, parseXLS, toCSV } from '@/lib/csv'
+import { exportXLSX, parseWorkbook, toCSV } from '@/lib/csv'
 import { rupiah } from '@/lib/format'
 import { Button, Card, DataTable, FR, PageHeader } from '@/components/ui'
 
-// Format header import .xls tanpa kolom barcode
+// Format header import .xlsx tanpa kolom jenis dan barcode (1 baris = 1 produk)
 const TEMPLATE_HEADER = [
-  'jenis',
   'sku',
   'nama',
   'kategori',
   'satuan',
-  'satuan_induk',
-  'isi',
   'harga_beli',
   'harga_jual',
   'stok',
   'stok_minimum',
+  // Tingkat Satuan Tambahan 2, 3, 4 (Opsional)
+  'satuan_2',
+  'isi_2',
+  'harga_beli_2',
+  'harga_jual_2',
+  'satuan_3',
+  'isi_3',
+  'harga_beli_3',
+  'harga_jual_3',
+  'satuan_4',
+  'isi_4',
+  'harga_beli_4',
+  'harga_jual_4',
+  // Pecahan / Eceran 1, 2, 3 (Opsional)
+  'pecahan_1',
+  'isi_pecahan_1',
+  'harga_jual_pecahan_1',
+  'pecahan_2',
+  'isi_pecahan_2',
+  'harga_jual_pecahan_2',
+  'pecahan_3',
+  'isi_pecahan_3',
+  'harga_jual_pecahan_3',
 ]
 
-// Data contoh komprehensif: produk bertingkat & pecahan (Beras, Gula, Kopi) serta produk reguler
+// Data contoh komprehensif: 1 baris per produk dengan kolom satuan bertingkat & pecahan opsional
 const CONTOH_ROWS: (string | number)[][] = [
   // 1. Beras Curah: Satuan dasar kg, 1 tingkat satuan (sak = 50 kg), dan 3 pecahan (5kg, 2kg, 1kg)
-  ['produk', 'SKU-BRS-001', 'Beras Ramos Super Curah', 'Sembako', 'kg', '', 1, 12000, 14500, 250, 25],
-  ['satuan', '', '', '', 'sak', 'kg', 50, 600000, 690000, '', ''],
-  ['pecahan', '', '5kg', '', '', 'sak', 5, 60000, 69000, '', ''],
-  ['pecahan', '', '2kg', '', '', 'sak', 2, 24000, 28500, '', ''],
-  ['pecahan', '', '1kg', '', '', 'sak', 1, 12000, 14500, '', ''],
+  [
+    'SKU-BRS-001',
+    'Beras Ramos Super Curah',
+    'Sembako',
+    'kg',
+    12000,
+    14500,
+    250,
+    25,
+    'sak',
+    50,
+    600000,
+    690000,
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '5kg',
+    5,
+    69000,
+    '2kg',
+    2,
+    28500,
+    '1kg',
+    1,
+    14500,
+  ],
 
   // 2. Gula Pasir Curah: Satuan dasar kg, 1 tingkat satuan (sak = 50 kg), dan 3 pecahan (1kg, 1/2kg, 1/4kg)
-  ['produk', 'SKU-GLA-001', 'Gula Pasir Kristal Curah', 'Sembako', 'kg', '', 1, 14000, 17000, 200, 20],
-  ['satuan', '', '', '', 'sak', 'kg', 50, 700000, 770000, '', ''],
-  ['pecahan', '', '1kg', '', '', 'sak', 1, 14000, 17000, '', ''],
-  ['pecahan', '', '1/2kg', '', '', 'sak', 0.5, 7000, 8750, '', ''],
-  ['pecahan', '', '1/4kg', '', '', 'sak', 0.25, 3500, 4500, '', ''],
+  [
+    'SKU-GLA-001',
+    'Gula Pasir Kristal Curah',
+    'Sembako',
+    'kg',
+    14000,
+    17000,
+    200,
+    20,
+    'sak',
+    50,
+    700000,
+    770000,
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '1kg',
+    1,
+    17000,
+    '1/2kg',
+    0.5,
+    8750,
+    '1/4kg',
+    0.25,
+    4500,
+  ],
 
-  // 3. Kopi Kapal Api: 3 tingkat satuan (pcs -> renceng [10 pcs] -> karton [12 renceng]), dan 1 pecahan (1/2 renceng)
-  ['produk', 'SKU-KPI-001', 'Kopi Kapal Api Spesial Mix', 'Minuman', 'pcs', '', 1, 1200, 1500, 240, 20],
-  ['satuan', '', '', '', 'renceng', 'pcs', 10, 11500, 13500, '', ''],
-  ['satuan', '', '', '', 'karton', 'renceng', 12, 135000, 155000, '', ''],
-  ['pecahan', '', '1/2 renceng', '', '', 'renceng', 0.5, 6000, 7000, '', ''],
+  // 3. Kopi Kapal Api: Satuan dasar pcs, 2 tingkat satuan (renceng = 10 pcs, karton = 12 renceng), 1 pecahan (1/2 renceng)
+  [
+    'SKU-KPI-001',
+    'Kopi Kapal Api Spesial Mix',
+    'Minuman',
+    'pcs',
+    1200,
+    1500,
+    240,
+    20,
+    'renceng',
+    10,
+    11500,
+    13500,
+    'karton',
+    12,
+    135000,
+    155000,
+    '',
+    '',
+    '',
+    '',
+    '1/2 renceng',
+    0.5,
+    7000,
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+  ],
 
   // 4. Produk Reguler Satuan Tunggal (tanpa satuan bertingkat & tanpa pecahan)
-  ['produk', 'SKU-MYK-001', 'Minyak Goreng Sania 2L', 'Sembako', 'pouch', '', 1, 32000, 36000, 60, 10],
-  ['produk', 'SKU-TGG-001', 'Tepung Terigu Segitiga Biru 1kg', 'Sembako', 'pcs', '', 1, 11000, 13000, 80, 15],
+  [
+    'SKU-MYK-001',
+    'Minyak Goreng Sania 2L',
+    'Sembako',
+    'pouch',
+    32000,
+    36000,
+    60,
+    10,
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+  ],
+  [
+    'SKU-TGG-001',
+    'Tepung Terigu Segitiga Biru 1kg',
+    'Sembako',
+    'pcs',
+    11000,
+    13000,
+    80,
+    15,
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+    '',
+  ],
 ]
 
 const CONTOH_TEXT = toCSV(TEMPLATE_HEADER, CONTOH_ROWS)
@@ -71,26 +230,26 @@ export function ImportProduk() {
   const push = useToast((s) => s.push)
 
   const [rawText, setRawText] = useState(CONTOH_TEXT)
-  const [fileName, setFileName] = useState<string | null>('contoh-data.xls')
+  const [fileName, setFileName] = useState<string | null>('contoh-data.xlsx')
   const [fileSize, setFileSize] = useState<string | null>(null)
   const [showRawEditor, setShowRawEditor] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [preview, setPreview] = useState<BarisPreview[] | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Unduh template dalam format .xls resmi
+  // Unduh template dalam format .xlsx resmi
   const unduhTemplate = () => {
-    exportXLS('template-import-produk.xls', TEMPLATE_HEADER, CONTOH_ROWS, 'Template Produk')
+    exportXLSX('template-import-produk.xlsx', TEMPLATE_HEADER, CONTOH_ROWS, 'Template Produk')
     push({
       tipe: 'info',
       judul: 'Template Excel Diunduh',
-      pesan: 'Berkas template-import-produk.xls siap diedit di Microsoft Excel atau WPS Office.',
+      pesan: 'Berkas template-import-produk.xlsx siap diedit di Microsoft Excel atau WPS Office.',
     })
   }
 
-  // Parser data bertingkat (Mendukung .xls XML Spreadsheet, HTML Table, dan CSV)
-  const parseData = (content: string) => {
-    const rows = parseXLS(content)
+  // Parser data 1 baris per produk dengan kolom satuan & pecahan opsional
+  const parseData = (contentOrData: string | ArrayBuffer | string[][]) => {
+    const rows = Array.isArray(contentOrData) ? contentOrData : parseWorkbook(contentOrData)
     if (rows.length < 2) {
       push({
         tipe: 'error',
@@ -112,149 +271,64 @@ export function ImportProduk() {
       return
     }
 
-    type RawRow = {
-      lineNo: number
-      jenis: string
-      sku: string
-      nama: string
-      kategori: string
-      satuan: string
-      satuanInduk: string
-      isi: string
-      hargaBeli: string
-      hargaJual: string
-      stok: string
-      stokMinimum: string
-    }
-
-    type ProdukGroup = {
-      mainRow: RawRow
-      tierRows: RawRow[]
-      pecahanRows: RawRow[]
-    }
-
-    const groups: ProdukGroup[] = []
-    let currentGroup: ProdukGroup | null = null
+    const hasil: BarisPreview[] = []
 
     rows.slice(1).forEach((r, rowIdx) => {
       if (!r.some((c) => c && c.trim() !== '')) return
 
       const get = (k: string) => (idx(k) >= 0 ? (r[idx(k)] ?? '').trim() : '')
-      const rowObj: RawRow = {
-        lineNo: rowIdx + 2,
-        jenis: get('jenis').toLowerCase(),
-        sku: get('sku'),
-        nama: get('nama'),
-        kategori: get('kategori'),
-        satuan: get('satuan'),
-        satuanInduk: get('satuan_induk'),
-        isi: get('isi'),
-        hargaBeli: get('harga_beli'),
-        hargaJual: get('harga_jual'),
-        stok: get('stok'),
-        stokMinimum: get('stok_minimum'),
-      }
+      const lineNo = rowIdx + 2
 
-      if (rowObj.jenis === 'satuan') {
-        if (currentGroup) {
-          currentGroup.tierRows.push(rowObj)
-        } else {
-          groups.push({
-            mainRow: { ...rowObj, sku: '', nama: '[Tanpa Produk Induk]' },
-            tierRows: [rowObj],
-            pecahanRows: [],
-          })
-        }
-      } else if (rowObj.jenis === 'pecahan') {
-        if (currentGroup) {
-          currentGroup.pecahanRows.push(rowObj)
-        } else {
-          groups.push({
-            mainRow: { ...rowObj, sku: '', nama: '[Tanpa Produk Induk]' },
-            tierRows: [],
-            pecahanRows: [rowObj],
-          })
-        }
-      } else {
-        currentGroup = {
-          mainRow: rowObj,
-          tierRows: [],
-          pecahanRows: [],
-        }
-        groups.push(currentGroup)
-      }
-    })
-
-    const hasil: BarisPreview[] = groups.map((g, pIdx) => {
-      const m = g.mainRow
-      const sku = m.sku
-      const nama = m.nama
-      const kategoriNama = m.kategori
+      const sku = get('sku')
+      const nama = get('nama')
+      const kategoriNama = get('kategori')
       const kat = kategori.find((k) => k.nama.toLowerCase() === kategoriNama.toLowerCase())
-      const baseSatuan = (m.satuan || 'pcs').toLowerCase()
-      const baseHargaBeli = Number(m.hargaBeli) || 0
-      const baseHargaJual = Number(m.hargaJual) || 0
-      const stok = Number(m.stok) || 0
-      const stokMinimum = Number(m.stokMinimum) || 5
+      const baseSatuan = (get('satuan') || 'pcs').toLowerCase()
+      const baseHargaBeli = Number(get('harga_beli')) || 0
+      const baseHargaJual = Number(get('harga_jual')) || 0
+      const stok = Number(get('stok')) || 0
+      const stokMinimum = Number(get('stok_minimum')) || 5
 
       const catatan: string[] = []
-
       if (!sku) catatan.push('SKU wajib diisi')
-      if (!nama || nama === '[Tanpa Produk Induk]') catatan.push('Nama produk wajib diisi')
+      if (!nama) catatan.push('Nama produk wajib diisi')
       if (!kat && kategoriNama) catatan.push(`Kategori "${kategoriNama}" belum terdaftar`)
       if (baseHargaJual < baseHargaBeli && baseHargaBeli > 0) catatan.push('Harga jual dasar < harga beli')
-
-      // Validasi batas maksimum: maksimal 4 tingkat satuan & 4 pecahan
-      if (g.tierRows.length > 4) {
-        catatan.push(`Maksimal 4 tingkat satuan (ditemukan ${g.tierRows.length} baris satuan)`)
-      }
-      if (g.pecahanRows.length > 4) {
-        catatan.push(`Maksimal 4 pecahan (ditemukan ${g.pecahanRows.length} baris pecahan)`)
-      }
 
       const createdTiers: SatuanBertingkat[] = []
       let prevSatuan = baseSatuan
       let prevMultiplier = 1
 
-      // 1. Proses Tingkat Satuan (maksimal 4 tingkat)
-      g.tierRows.slice(0, 4).forEach((tr, tIdx) => {
-        const namaSatuan = (tr.satuan || tr.nama || '').trim().toLowerCase()
-        if (!namaSatuan) {
-          catatan.push(`Tingkat satuan #${tIdx + 1}: Nama satuan kosong`)
-          return
-        }
+      // 1. Proses Tingkat Satuan Tambahan (satuan_2, satuan_3, satuan_4)
+      const tierLevels = [2, 3, 4]
+      tierLevels.forEach((lvl) => {
+        const namaSatuan = get(`satuan_${lvl}`).toLowerCase()
+        if (!namaSatuan) return
+
         if (namaSatuan === baseSatuan) {
-          catatan.push(`Tingkat satuan #${tIdx + 1}: Satuan '${namaSatuan}' sama dengan satuan dasar`)
+          catatan.push(`Satuan_${lvl} '${namaSatuan}' sama dengan satuan dasar`)
           return
         }
         if (createdTiers.some((t) => t.namaSatuan.toLowerCase() === namaSatuan)) {
-          catatan.push(`Tingkat satuan #${tIdx + 1}: Satuan '${namaSatuan}' duplikat`)
+          catatan.push(`Satuan_${lvl} '${namaSatuan}' duplikat`)
           return
         }
 
-        const satuanInduk = (tr.satuanInduk || prevSatuan).trim().toLowerCase()
-        const isiVal = parseFloat(tr.isi) || 1
+        const isiVal = parseFloat(get(`isi_${lvl}`)) || 1
+        const multToBase = prevMultiplier * isiVal
+        const satuanTurunan = prevSatuan
 
-        let multToBase = isiVal
-        if (satuanInduk === baseSatuan) {
-          multToBase = isiVal
-        } else {
-          const parentFound = createdTiers.find((t) => t.namaSatuan === satuanInduk)
-          if (parentFound) {
-            multToBase = parentFound.multiplierToBase * isiVal
-          } else {
-            multToBase = prevMultiplier * isiVal
-          }
-        }
+        const hbInput = get(`harga_beli_${lvl}`)
+        const hjInput = get(`harga_jual_${lvl}`)
 
         const hargaBeli =
-          tr.hargaBeli && Number(tr.hargaBeli) > 0
-            ? Number(tr.hargaBeli)
+          hbInput && Number(hbInput) > 0
+            ? Number(hbInput)
             : Math.round(baseHargaBeli * multToBase)
 
         const hargaJual =
-          tr.hargaJual && Number(tr.hargaJual) > 0
-            ? Number(tr.hargaJual)
+          hjInput && Number(hjInput) > 0
+            ? Number(hjInput)
             : hargaBeli > 0
               ? Math.round(hargaBeli * 1.15)
               : Math.round(baseHargaJual * multToBase)
@@ -263,9 +337,9 @@ export function ImportProduk() {
           hargaBeli > 0 ? Math.round(((hargaJual - hargaBeli) / hargaBeli) * 100 * 10) / 10 : 0
 
         createdTiers.push({
-          id: `STB-IMP-${Date.now()}-${pIdx}-${tIdx + 1}`,
+          id: `STB-IMP-${Date.now()}-${rowIdx}-${lvl}`,
           namaSatuan,
-          satuanTurunan: satuanInduk,
+          satuanTurunan,
           isi: isiVal,
           multiplierToBase: multToBase,
           hargaBeli,
@@ -278,47 +352,41 @@ export function ImportProduk() {
         prevMultiplier = multToBase
       })
 
-      // 2. Proses Pecahan (maksimal 4 pecahan)
-      g.pecahanRows.slice(0, 4).forEach((fr, fIdx) => {
-        const namaPecahan = (fr.nama || fr.satuan || `Pecahan ${fIdx + 1}`).trim()
-        if (!namaPecahan) {
-          catatan.push(`Pecahan #${fIdx + 1}: Nama pecahan kosong`)
-          return
-        }
+      // 2. Proses Pecahan (pecahan_1, pecahan_2, pecahan_3)
+      const fracLevels = [1, 2, 3]
+      fracLevels.forEach((lvl) => {
+        const namaPecahan = get(`pecahan_${lvl}`)
+        if (!namaPecahan) return
 
-        const satuanInduk = (
-          fr.satuanInduk ||
-          (createdTiers.length > 0 ? createdTiers[0].namaSatuan : baseSatuan)
-        ).trim().toLowerCase()
+        const isiRaw = get(`isi_pecahan_${lvl}`)
+        const isiVal = parseFloat(isiRaw) || 1
 
-        const isiVal = parseFloat(fr.isi) || 1
-        const isParentBase = satuanInduk === baseSatuan
-        const parentTier = !isParentBase
-          ? createdTiers.find((t) => t.namaSatuan.toLowerCase() === satuanInduk)
-          : null
-        const parentMultiplier = parentTier ? parentTier.multiplierToBase : 1
+        // Induk satuan: unit bertingkat pertama jika ada, atau satuan dasar
+        const firstTier = createdTiers.find((t) => !t.isPecahan)
+        const parentUnitName = firstTier ? firstTier.namaSatuan : baseSatuan
+        const parentMultiplier = firstTier ? firstTier.multiplierToBase : 1
+        const parentHargaBeli = firstTier ? firstTier.hargaBeli : baseHargaBeli
 
         let multToBase = 1
         let rasio = 1
 
         if (isiVal < 1) {
-          // Rasio terhadap induk (contoh 0.5 = 1/2 satuan induk)
           rasio = isiVal
           multToBase = Math.max(0.001, Math.round(parentMultiplier * rasio * 1000) / 1000)
         } else {
-          // Bobot langsung dalam satuan dasar (contoh 5 = 5 kg dari 1 sak)
           multToBase = isiVal
           rasio = parentMultiplier > 0 ? isiVal / parentMultiplier : 1
         }
 
         const hargaBeli =
-          fr.hargaBeli && Number(fr.hargaBeli) > 0
-            ? Number(fr.hargaBeli)
+          firstTier && isiVal < 1
+            ? Math.round(parentHargaBeli * rasio)
             : Math.round(baseHargaBeli * multToBase)
 
+        const hjInput = get(`harga_jual_pecahan_${lvl}`)
         const hargaJual =
-          fr.hargaJual && Number(fr.hargaJual) > 0
-            ? Number(fr.hargaJual)
+          hjInput && Number(hjInput) > 0
+            ? Number(hjInput)
             : hargaBeli > 0
               ? Math.round(hargaBeli * 1.15)
               : Math.round(baseHargaJual * multToBase)
@@ -327,7 +395,7 @@ export function ImportProduk() {
           hargaBeli > 0 ? Math.round(((hargaJual - hargaBeli) / hargaBeli) * 100 * 10) / 10 : 0
 
         createdTiers.push({
-          id: `STB-FRAC-IMP-${Date.now()}-${pIdx}-${fIdx + 1}`,
+          id: `STB-FRAC-IMP-${Date.now()}-${rowIdx}-${lvl}`,
           namaSatuan: namaPecahan,
           satuanTurunan: baseSatuan,
           isi: multToBase,
@@ -336,13 +404,13 @@ export function ImportProduk() {
           marginPersen,
           hargaJual,
           isPecahan: true,
-          indukSatuan: satuanInduk,
+          indukSatuan: parentUnitName,
           rasio,
         })
       })
 
-      return {
-        rowNumber: m.lineNo,
+      hasil.push({
+        rowNumber: lineNo,
         sku,
         nama,
         kategoriNama: kategoriNama || (kategori[0]?.nama ?? '-'),
@@ -355,7 +423,7 @@ export function ImportProduk() {
         satuanBertingkat: createdTiers,
         valid: catatan.length === 0,
         catatan,
-      }
+      })
     })
 
     setPreview(hasil)
@@ -382,11 +450,14 @@ export function ImportProduk() {
     setFileSize(`${(file.size / 1024).toFixed(1)} KB`)
     const reader = new FileReader()
     reader.onload = () => {
-      const content = String(reader.result ?? '')
-      setRawText(content)
-      parseData(content)
+      const buffer = reader.result as ArrayBuffer
+      const rows = parseWorkbook(buffer)
+      if (rows.length > 0) {
+        setRawText(toCSV(rows[0], rows.slice(1)))
+      }
+      parseData(rows)
     }
-    reader.readAsText(file)
+    reader.readAsArrayBuffer(file)
   }
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -449,22 +520,22 @@ export function ImportProduk() {
 
   const resetContoh = () => {
     setRawText(CONTOH_TEXT)
-    setFileName('contoh-data.xls')
-    setFileSize('1.8 KB')
+    setFileName('contoh-data.xlsx')
+    setFileSize('2.4 KB')
     parseData(CONTOH_TEXT)
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
-        judul="Impor Produk Massal (.xls)"
-        deskripsi="Impor produk dalam format Excel (.xls) dengan dukungan Satuan Bertingkat (maks. 4 tingkat) dan Pecahan (maks. 4 pecahan)."
+        judul="Impor Produk Massal (.xlsx)"
+        deskripsi="Impor produk massal (1 baris per produk) dalam format Excel (.xlsx) dengan kolom opsional Satuan Bertingkat (maks. 3 tingkat) dan Pecahan (maks. 3 kemasan)."
         aksi={
           <Button variant="secondary" onClick={unduhTemplate} className="gap-2">
             <svg className="h-4 w-4 text-emerald-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            Unduh Template .XLS
+            Unduh Template .XLSX
           </Button>
         }
       />
@@ -472,7 +543,7 @@ export function ImportProduk() {
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Kolom 1 & 2: Unggah Berkas & Editor */}
         <Card
-          title="1. Unggah Berkas Excel (.xls) atau Teks"
+          title="1. Unggah Berkas Excel (.xlsx) atau Teks"
           subtitle="Pilih berkas dari komputer atau tempel data langsung."
           action={<FR kode="FR-INV-08" />}
           className="lg:col-span-2"
@@ -495,7 +566,7 @@ export function ImportProduk() {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".xls,.xlsx,.csv,.tsv,.txt"
+              accept=".xlsx,.xls,.csv,.tsv,.txt"
               className="hidden"
               onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
             />
@@ -507,10 +578,10 @@ export function ImportProduk() {
             </div>
 
             <p className="text-sm font-semibold text-slate-800">
-              Klik untuk memilih berkas Excel (.xls) atau seret ke sini
+              Klik untuk memilih berkas Excel (.xlsx) atau seret ke sini
             </p>
             <p className="mt-1 text-xs text-slate-500">
-              Format yang didukung: <span className="font-medium text-slate-700">.xls</span> (Excel XML / Spreadsheet), <span className="font-medium text-slate-700">.csv</span>
+              Format yang didukung: <span className="font-medium text-slate-700">.xlsx</span> (Excel Workbook), <span className="font-medium text-slate-700">.xls</span>, <span className="font-medium text-slate-700">.csv</span>
             </p>
 
             {fileName && (
@@ -569,34 +640,48 @@ export function ImportProduk() {
         </Card>
 
         {/* Kolom 3: Panduan Format Bertingkat */}
-        <Card title="Aturan Format Bertingkat" subtitle="Struktur baris untuk multi-satuan & pecahan">
+        <Card title="Aturan Format Template" subtitle="1 baris per produk dengan kolom opsional">
           <div className="space-y-4 text-xs text-slate-600">
             <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-3">
-              <div className="font-semibold text-blue-900">Format Baris Bertingkat</div>
+              <div className="font-semibold text-blue-900">Format 1 Baris per Produk</div>
               <p className="mt-1 leading-relaxed text-blue-800">
-                Setiap item dimulai dengan baris <code className="rounded bg-blue-100 px-1 font-mono text-blue-900">produk</code>, diikuti baris <code className="rounded bg-blue-100 px-1 font-mono text-blue-900">satuan</code> atau <code className="rounded bg-blue-100 px-1 font-mono text-blue-900">pecahan</code>.
+                Setiap baris mewakili 1 produk lengkap. Kolom tingkat satuan tambahan (<code className="rounded bg-blue-100 px-1 font-mono text-blue-900">satuan_2..4</code>) dan pecahan (<code className="rounded bg-blue-100 px-1 font-mono text-blue-900">pecahan_1..3</code>) bersifat <strong>opsional</strong> dan dapat dikosongkan untuk produk reguler.
               </p>
             </div>
 
             <div className="space-y-2.5">
               <div className="flex gap-2">
-                <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-bold text-slate-700">jenis</span>
+                <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-bold text-slate-700">satuan</span>
+                <span>Satuan dasar terkecil produk (cth: kg, pcs, pouch). Menjadi basis perhitungan stok.</span>
+              </div>
+              <div className="flex gap-2">
+                <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-bold text-slate-700">satuan_2..4</span>
                 <span>
-                  <strong>produk</strong> (induk), <strong>satuan</strong> (tingkat satuan, maks. 4), atau <strong>pecahan</strong> (kemasan eceran, maks. 4).
+                  Nama tingkat satuan grosir/kemasan di atasnya (cth: renceng, karton, sak).
                 </span>
               </div>
               <div className="flex gap-2">
-                <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-bold text-slate-700">satuan</span>
-                <span>Satuan dasar produk (cth: kg, pcs) atau nama tingkat satuan (cth: sak, renceng).</span>
-              </div>
-              <div className="flex gap-2">
-                <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-bold text-slate-700">satuan_induk</span>
-                <span>Satuan acuan di bawahnya (cth: renceng mengacu ke pcs, karton mengacu ke renceng).</span>
-              </div>
-              <div className="flex gap-2">
-                <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-bold text-slate-700">isi</span>
+                <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-bold text-slate-700">isi_2..4</span>
                 <span>
-                  Pengali isi. Pada pecahan: desimal &lt; 1 adalah rasio induk (cth: 0.5 = 1/2 sak), angka &ge; 1 adalah bobot satuan dasar (cth: 5 = 5 kg).
+                  Isi terhadap tingkat satuan di bawahnya (cth: 1 karton isi 12 renceng, 1 renceng isi 10 pcs).
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-bold text-slate-700">harga_beli_N</span>
+                <span>
+                  Opsional. Jika dikosongkan, modal dihitung otomatis proporsional dari satuan dasar/induk.
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-bold text-slate-700">pecahan_1..3</span>
+                <span>
+                  Kemasan eceran/pecahan (cth: 5kg, 2kg, 1/2 renceng).
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] font-bold text-slate-700">isi_pecahan</span>
+                <span>
+                  Angka &lt; 1 adalah rasio terhadap induk (cth: 0.5 = 1/2 renceng), angka &ge; 1 adalah kuantitas satuan dasar (cth: 5 = 5 kg).
                 </span>
               </div>
               <div className="flex gap-2">
@@ -608,7 +693,7 @@ export function ImportProduk() {
             </div>
 
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-[11px] text-amber-900">
-              <strong>Batasan:</strong> Maksimal 4 tingkat satuan dan 4 pecahan untuk tiap produk.
+              <strong>Kapasitas:</strong> Mendukung hingga 3 tingkat satuan tambahan dan 3 pecahan untuk tiap produk.
             </div>
           </div>
         </Card>
@@ -689,7 +774,7 @@ export function ImportProduk() {
               },
               {
                 key: 'satuanBertingkat',
-                header: 'Satuan Bertingkat (Maks. 4)',
+                header: 'Satuan Bertingkat (Maks. 3)',
                 render: (p) => {
                   const tiers = p.satuanBertingkat.filter((t) => !t.isPecahan)
                   if (tiers.length === 0) {
@@ -713,7 +798,7 @@ export function ImportProduk() {
               },
               {
                 key: 'pecahan',
-                header: 'Pecahan / Eceran (Maks. 4)',
+                header: 'Pecahan / Eceran (Maks. 3)',
                 render: (p) => {
                   const fracs = p.satuanBertingkat.filter((t) => t.isPecahan)
                   if (fracs.length === 0) {
