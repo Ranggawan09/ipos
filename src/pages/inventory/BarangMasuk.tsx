@@ -6,6 +6,7 @@ import { useToast } from '@/store/useToast'
 import { rupiah, tanggalJam, toDateInput } from '@/lib/format'
 import { Badge, Button, Card, CurrencyInput, DataTable, FR, Input, Label, Modal, PageHeader, Select } from '@/components/ui'
 import { ModalRestockSupplier } from '@/components/ModalRestockSupplier'
+import { SelectProduk } from '@/components/SelectProduk'
 
 type Baris = {
   produkId: string
@@ -192,7 +193,7 @@ export function BarangMasuk() {
     push({
       tipe: 'sukses',
       judul: 'Penerimaan barang dicatat',
-      pesan: `${valid.length} item, total ${rupiah(total)}${updateHargaModal ? ' (Harga modal produk otomatis diperbarui)' : ''}${metode === 'kredit' ? ' [Kredit]' : ''}`,
+      pesan: `${valid.length} item, total ${rupiah(total)}${updateHargaModal ? ' (Harga modal & harga jual diperbarui, margin tetap)' : ''}${metode === 'kredit' ? ' [Kredit]' : ''}`,
     })
     setModal(false)
     reset()
@@ -384,7 +385,12 @@ export function BarangMasuk() {
                 onChange={(e) => setUpdateHargaModal(e.target.checked)}
                 className="h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
               />
-              <span>Update otomatis harga modal (HPP) produk di master data sesuai harga penerimaan saat ini</span>
+              <span>
+                Update otomatis harga modal (HPP) & harga jual (margin tetap) sesuai harga penerimaan.
+                <span className="block text-[11px] font-normal text-emerald-800/80">
+                  Pembagian modal ke semua satuan & pecahan mengikuti setelan <strong>Bagi otomatis</strong> di tiap produk.
+                </span>
+              </span>
             </label>
             <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-white border border-emerald-200 px-2 py-0.5 rounded-full shadow-2xs">
               ⚡ HPP Terupdate Otomatis
@@ -439,13 +445,10 @@ export function BarangMasuk() {
                       {/* Produk */}
                       <div className="col-span-12 md:col-span-3">
                         <Label className="text-xs font-semibold text-slate-700">Produk</Label>
-                        <Select value={b.produkId} onChange={(e) => gantiProdukBaris(i, e.target.value)}>
-                          {produk.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.nama} ({p.sku})
-                            </option>
-                          ))}
-                        </Select>
+                        <SelectProduk
+                          value={b.produkId}
+                          onChange={(produkId) => gantiProdukBaris(i, produkId)}
+                        />
                       </div>
 
                       {/* Satuan Pembelian */}

@@ -25,6 +25,7 @@ export type PendingTrx = {
   id: string
   shiftId: string
   kasirId: string
+  pelanggan?: string
   detail: CartItem[]
   diskonNota: number
   metode: 'tunai' | 'qris' | 'debit'
@@ -216,6 +217,7 @@ export const useSessionStore = create<SessionState>()(
             diskonNota: p.diskonNota,
             metode: p.metode,
             dibayar: p.dibayar,
+            pelanggan: p.pelanggan,
           })
         })
         set({ pendingQueue: [], lastSyncAt: new Date().toISOString() })

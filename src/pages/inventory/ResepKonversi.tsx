@@ -3,6 +3,7 @@ import type { ResepKonversi as TResep } from '@/types'
 import { useDataStore } from '@/store/useDataStore'
 import { useToast } from '@/store/useToast'
 import { Badge, Button, Card, CurrencyInput, DataTable, Input, Label, Modal, PageHeader, Select } from '@/components/ui'
+import { SelectProduk } from '@/components/SelectProduk'
 
 type ItemForm = { produkKemasanId: string; beratPerKemasan: number }
 
@@ -219,16 +220,12 @@ export function ResepKonversi() {
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
               <Label>Produk curah</Label>
-              <Select
+              <SelectProduk
                 value={form.produkCurahId}
-                onChange={(e) => setForm({ ...form, produkCurahId: e.target.value })}
-              >
-                {produkAktif.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.nama}
-                  </option>
-                ))}
-              </Select>
+                onChange={(id) => setForm({ ...form, produkCurahId: id })}
+                daftarProdukCustom={produkAktif}
+                placeholder="-- Pilih Produk Curah --"
+              />
             </div>
             <div>
               <Label>Berat per unit</Label>
@@ -274,16 +271,12 @@ export function ResepKonversi() {
                 <div key={i} className="grid grid-cols-12 items-end gap-2">
                   <div className="col-span-7">
                     <Label>Produk kemasan</Label>
-                    <Select
+                    <SelectProduk
                       value={it.produkKemasanId}
-                      onChange={(e) => ubahItem(i, { produkKemasanId: e.target.value })}
-                    >
-                      {produkAktif.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.nama} ({p.sku})
-                        </option>
-                      ))}
-                    </Select>
+                      onChange={(id) => ubahItem(i, { produkKemasanId: id })}
+                      daftarProdukCustom={produkAktif}
+                      placeholder="-- Pilih Produk Kemasan --"
+                    />
                   </div>
                   <div className="col-span-4">
                     <Label>Berat ({form.satuanDasar})</Label>

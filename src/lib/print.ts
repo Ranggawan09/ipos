@@ -1,4 +1,4 @@
-// Cetak struk thermal 80mm & laporan melalui dialog print browser.
+import type { TemplateNota } from '@/types'
 
 export type StrukItem = {
   nama: string
@@ -10,11 +10,12 @@ export type StrukItem = {
 }
 
 export type StrukData = {
-  namaToko: string
-  alamat: string
+  namaToko?: string
+  alamat?: string
   nomor: string
   waktu: string
   kasir: string
+  pelanggan?: string
   items: StrukItem[]
   totalItem?: number
   subtotal: number
@@ -25,12 +26,38 @@ export type StrukData = {
   metode: string
   dibayar: number
   kembalian: number
+  template?: Partial<TemplateNota>
 }
 
 const rp = (n: number) => Math.round(n).toLocaleString('id-ID')
 
 export function cetakStruk(data: StrukData) {
-  const w = window.open('', '_blank', 'width=380,height=640')
+  const tpl = data.template
+  const lebar = tpl?.lebarKertas || '80mm'
+  const bodyWidth = lebar === '58mm' ? '50mm' : '72mm'
+  const winWidth = lebar === '58mm' ? 320 : 380
+  const fontSize = tpl?.ukuranFont === 'kecil' ? '11px' : tpl?.ukuranFont === 'besar' ? '13px' : '12px'
+  const titleSize = tpl?.ukuranFont === 'kecil' ? '13px' : tpl?.ukuranFont === 'besar' ? '15px' : '14px'
+
+  const namaToko = tpl?.namaToko || data.namaToko || 'TOKO PASAR JAYA'
+  const alamat = tpl?.alamat ?? data.alamat ?? ''
+  const telepon = tpl?.telepon ? `<div class="center" style="font-size: 11px;">Telp: ${tpl.telepon}</div>` : ''
+  const headerPesan = tpl?.headerPesan ? `<div class="center" style="font-size: 11px; margin-top: 2px;">${tpl.headerPesan}</div>` : ''
+
+  const showKasir = tpl ? tpl.tampilkanKasir !== false : true
+  const showWaktu = tpl ? tpl.tampilkanWaktu !== false : true
+  const showNomor = tpl ? tpl.tampilkanNomor !== false : true
+  const showTotalItem = tpl ? tpl.tampilkanTotalItem !== false : true
+  const showSatuan = tpl ? tpl.tampilkanSatuan !== false : true
+  const showDiskonItem = tpl ? tpl.tampilkanDiskonItem !== false : true
+  const showDiskonNota = tpl ? tpl.tampilkanDiskonNota !== false : true
+  const showMetode = tpl ? tpl.tampilkanMetodeBayar !== false : true
+
+  const footer1 = tpl?.footerPesan1 ?? 'Terima kasih telah berbelanja'
+  const footer2 = tpl?.footerPesan2 ?? 'Barang yang sudah dibeli tidak dapat ditukar'
+  const footer3 = tpl?.footerPesan3 ? `<div class="center" style="margin-top: 2px;">${tpl.footerPesan3}</div>` : ''
+
+  const w = window.open('', '_blank', `width=${winWidth},height=640`)
   if (!w) {
     alert('Izinkan pop-up untuk mencetak struk.')
     return
@@ -39,12 +66,12 @@ export function cetakStruk(data: StrukData) {
   const items = data.items
     .map((i) => {
       const hargaAsli = i.qty * i.harga
-      const diskon = i.diskonItem || 0
+      const diskon = showDiskonItem ? (i.diskonItem || 0) : 0
       const diskonRow =
         diskon > 0
           ? `<div class="row" style="padding-left: 8px; font-size: 11px;"><span>Diskon</span><span>-${rp(diskon)}</span></div>`
           : ''
-      const unitStr = i.satuan ? ` ${i.satuan}` : ''
+      const unitStr = showSatuan && i.satuan ? ` ${i.satuan}` : ''
       return `
       <div class="item">
         <div>${i.nama}</div>
@@ -56,41 +83,44 @@ export function cetakStruk(data: StrukData) {
 
   w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Struk ${data.nomor}</title>
   <style>
-    * { font-family: 'Courier New', monospace; }
-    body { width: 72mm; margin: 0 auto; padding: 8px; font-size: 12px; color:#000; }
+    * { font-family: 'Courier New', monospace; box-sizing: border-box; }
+    body { width: ${bodyWidth}; margin: 0 auto; padding: 6px; font-size: ${fontSize}; color:#000; }
     .center { text-align: center; }
     .bold { font-weight: bold; }
-    .line { border-top: 1px dashed #000; margin: 6px 0; }
+    .line { border-top: 1px dashed #000; margin: 5px 0; }
     .row { display: flex; justify-content: space-between; }
     .item { margin-bottom: 4px; }
-    .big { font-size: 14px; }
-    @media print { body { width: auto; } @page { size: 80mm auto; margin: 0; } }
+    .big { font-size: ${titleSize}; }
+    @media print { body { width: auto; } @page { size: ${lebar} auto; margin: 0; } }
   </style></head><body onload="window.print()">
-    <div class="center bold big">${data.namaToko}</div>
-    <div class="center">${data.alamat}</div>
-    <div class="line"></div>
-    <div class="row"><span>No</span><span>${data.nomor}</span></div>
-    <div class="row"><span>Waktu</span><span>${data.waktu}</span></div>
-    <div class="row"><span>Kasir</span><span>${data.kasir}</span></div>
+    <div class="center bold big">${namaToko}</div>
+    ${alamat ? `<div class="center">${alamat}</div>` : ''}
+    ${telepon}
+    ${headerPesan}
+    ${showNomor ? `<div class="row"><span>No</span><span>${data.nomor}</span></div>` : ''}
+    ${showWaktu ? `<div class="row"><span>Waktu</span><span>${data.waktu}</span></div>` : ''}
+    ${showKasir ? `<div class="row"><span>Kasir</span><span>${data.kasir}</span></div>` : ''}
+    ${data.pelanggan ? `<div class="row"><span>Pelanggan</span><span>${data.pelanggan}</span></div>` : ''}
     <div class="line"></div>
     ${items}
     <div class="line"></div>
-    <div class="row"><span>Jumlah Item</span><span>${totalItemVal}</span></div>
+    ${showTotalItem ? `<div class="row"><span>Jumlah Item</span><span>${totalItemVal}</span></div>` : ''}
     <div class="row"><span>Subtotal</span><span>${rp(data.subtotal)}</span></div>
     ${
-      data.diskonItem && data.diskonNota
+      showDiskonItem && showDiskonNota && data.diskonItem && data.diskonNota
         ? `<div class="row"><span>Diskon Item</span><span>-${rp(data.diskonItem)}</span></div>
     <div class="row"><span>Diskon Nota</span><span>-${rp(data.diskonNota)}</span></div>`
-        : data.diskon > 0
+        : (data.diskon > 0 && (showDiskonItem || showDiskonNota))
           ? `<div class="row"><span>Diskon</span><span>-${rp(data.diskon)}</span></div>`
           : ''
     }
     <div class="row bold big"><span>TOTAL</span><span>${rp(data.total)}</span></div>
-    <div class="row"><span>${data.metode}</span><span>${rp(data.dibayar)}</span></div>
+    ${showMetode ? `<div class="row"><span>${data.metode}</span><span>${rp(data.dibayar)}</span></div>` : ''}
     <div class="row"><span>Kembali</span><span>${rp(data.kembalian)}</span></div>
     <div class="line"></div>
-    <div class="center">Terima kasih telah berbelanja</div>
-    <div class="center">Barang yang sudah dibeli tidak dapat ditukar</div>
+    ${footer1 ? `<div class="center">${footer1}</div>` : ''}
+    ${footer2 ? `<div class="center">${footer2}</div>` : ''}
+    ${footer3}
   </body></html>`)
   w.document.close()
 }

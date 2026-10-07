@@ -13,6 +13,7 @@ import type {
   Supplier,
   Transaksi,
   User,
+  Pelanggan,
 } from '@/types'
 
 // ---- Seed data dummy toko retail pasar ----------------------------------
@@ -60,6 +61,17 @@ export const USER_SEED: User[] = [
   { id: 'USR-04', nama: 'Sari Kasir', username: 'sari', pin: '3333', role: 'kasir', aktif: true },
   { id: 'USR-05', nama: 'Tono Kasir', username: 'tono', pin: '4444', role: 'kasir', aktif: true },
   { id: 'USR-06', nama: 'H. Pak Owner', username: 'owner', pin: '9999', role: 'owner', aktif: true },
+]
+
+export const PELANGGAN_SEED: Pelanggan[] = [
+  { id: 'CUST-001', nama: 'Warung Bu Siti', telepon: '0812-3456-7890', alamat: 'Jl. Melati No. 12', catatan: 'Pelanggan sembako grosir mingguan', createdAt: isoDaysAgo(60) },
+  { id: 'CUST-002', nama: 'Pak RT Budi', telepon: '0857-1122-3344', alamat: 'RT 03 / RW 05', catatan: 'Sering beli beras & minyak goreng', createdAt: isoDaysAgo(55) },
+  { id: 'CUST-003', nama: 'Katering Berkah', telepon: '0821-9988-7766', alamat: 'Jl. Kenanga No. 45', catatan: 'Pesanan partai besar beras & telur', createdAt: isoDaysAgo(45) },
+  { id: 'CUST-004', nama: 'Bu Ratna', telepon: '0878-5544-3322', alamat: 'Komplek Griya Indah B-3', catatan: 'Belanja harian sembako eceran', createdAt: isoDaysAgo(40) },
+  { id: 'CUST-005', nama: 'Resto Sedap Rasa', telepon: '0813-2233-4455', alamat: 'Ruko Pasar Segar No. 8', catatan: 'Restoran langganan beras premium & bumbu', createdAt: isoDaysAgo(30) },
+  { id: 'CUST-006', nama: 'Ibu Haryati', telepon: '0852-6677-8899', alamat: 'Jl. Mawar No. 7', catatan: 'Pelanggan setia toko', createdAt: isoDaysAgo(25) },
+  { id: 'CUST-007', nama: 'Pak Haji Usman', telepon: '0819-0011-2233', alamat: 'Jl. Cendana No. 18', catatan: 'Sering beli beras sak & minyak jerigen', createdAt: isoDaysAgo(20) },
+  { id: 'CUST-008', nama: 'Warung Kopi Mas Dodo', telepon: '0896-4455-6677', alamat: 'Depan Stasiun Pasar', catatan: 'Rutin beli kopi sachet & susu kaleng', createdAt: isoDaysAgo(15) },
 ]
 
 // Template nama produk per kategori: [nama, satuan, hargaBeli kira-kira]
@@ -432,11 +444,14 @@ export function buildShiftDanTransaksi(produk: Produk[]) {
         const dibayar = metode === 'tunai' ? Math.ceil(total / 5000) * 5000 : total
         const waktu = isoDaysAgo(hari, jamBuka + int(0, 5), int(0, 59))
 
+        const pelangganNama = rnd() < 0.45 ? pick(PELANGGAN_SEED).nama : undefined
+
         transaksi.push({
           id: `TRX-${String(trxNo).padStart(5, '0')}`,
           nomor: `INV/${new Date(waktu).toISOString().slice(0, 10).replace(/-/g, '')}/${String(trxNo).padStart(4, '0')}`,
           shiftId,
           kasirId,
+          pelanggan: pelangganNama,
           detail,
           subtotal,
           diskonNota,
@@ -494,9 +509,9 @@ export function buildShiftDanTransaksi(produk: Produk[]) {
 
 export function buildPengeluaran(): Pengeluaran[] {
   const list: Pengeluaran[] = []
-  const kat: Pengeluaran['kategori'][] = ['listrik', 'transport', 'lainnya', 'gaji', 'sewa']
+  const kat: Pengeluaran['kategori'][] = ['listrik', 'transport', 'lainnya', 'gaji', 'sewa', 'operasional_kasir']
   let n = 1
-  for (let hari = 30; hari >= 1; hari -= 3) {
+  for (let hari = 30; hari >= 1; hari -= 2) {
     const k = pick(kat)
     const nominal: Record<string, number> = {
       listrik: int(150000, 450000),
@@ -504,7 +519,9 @@ export function buildPengeluaran(): Pengeluaran[] {
       gaji: int(1800000, 2200000),
       transport: int(50000, 200000),
       lainnya: int(30000, 150000),
+      operasional_kasir: int(20000, 80000),
     }
+    const isOwnerExpense = k === 'gaji' || k === 'sewa' || k === 'listrik' || k === 'transport'
     list.push({
       id: `EXP-${String(n).padStart(4, '0')}`,
       kategori: k,
@@ -512,10 +529,14 @@ export function buildPengeluaran(): Pengeluaran[] {
         k === 'listrik' ? 'Token listrik toko' :
         k === 'sewa' ? 'Sewa kios bulanan' :
         k === 'gaji' ? 'Gaji karyawan' :
-        k === 'transport' ? 'Biaya transport belanja' : 'Kebutuhan operasional',
+        k === 'transport' ? 'Biaya transport belanja' :
+        k === 'operasional_kasir' ? 'Plastik kresek & solasi kasir' : 'Kebutuhan lakban & ATK toko',
       jumlah: nominal[k],
       tanggal: isoDaysAgo(hari, 10, 0),
-      userId: 'USR-01',
+      // Transaksi pengeluaran owner (gaji, sewa, listrik, transport) dibuat oleh USR-06 (Owner).
+      // Transaksi operasional kasir & lainnya dibuat oleh kasir (USR-02) atau admin (USR-01).
+      userId: isOwnerExpense ? 'USR-06' : (n % 2 === 0 ? 'USR-01' : 'USR-02'),
+      shiftId: !isOwnerExpense && n % 2 !== 0 ? 'SHF-001' : undefined,
     })
     n++
   }

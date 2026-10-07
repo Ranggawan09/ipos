@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { MetodePembayaran, Produk, SatuanBertingkat, Transaksi, VarianBobot } from '@/types'
+import { DEFAULT_TEMPLATE_NOTA } from '@/types'
 import { useDataStore } from '@/store/useDataStore'
 import { useSessionStore } from '@/store/useSessionStore'
 import { useToast } from '@/store/useToast'
@@ -75,7 +76,7 @@ function BukaShift() {
 }
 
 function StrukView({ trx, namaKasir }: { trx: Transaksi; namaKasir: string }) {
-  const { produk } = useDataStore()
+  const { produk, templateNota } = useDataStore()
   const subtotalKotor = trx.detail.reduce((a, d) => a + d.qty * d.hargaSatuan, 0)
   const totalDiskonItem = trx.detail.reduce((a, d) => a + (d.diskonItem || 0), 0)
   const diskonNota = trx.diskonNominal || 0
@@ -95,13 +96,15 @@ function StrukView({ trx, namaKasir }: { trx: Transaksi; namaKasir: string }) {
     }
   })
 
+  const tpl = templateNota || DEFAULT_TEMPLATE_NOTA
+
   const cetak = () =>
     cetakStruk({
-      namaToko: 'TOKO PASAR JAYA',
-      alamat: 'Pasar Induk Blok A No. 12, Jakarta',
+      template: tpl,
       nomor: trx.nomor,
       waktu: tanggalJam(trx.waktu),
       kasir: namaKasir,
+      pelanggan: trx.pelanggan,
       items,
       totalItem,
       subtotal: subtotalKotor,
@@ -116,22 +119,33 @@ function StrukView({ trx, namaKasir }: { trx: Transaksi; namaKasir: string }) {
 
   return (
     <div>
-      <div className="mx-auto w-[300px] rounded-lg border border-dashed border-slate-300 bg-white p-4 font-mono text-[11px] text-slate-700">
-        <p className="text-center text-sm font-bold">TOKO PASAR JAYA</p>
-        <p className="text-center text-[10px] text-slate-500">Pasar Induk Blok A No. 12, Jakarta</p>
+      <div className={`mx-auto ${tpl.lebarKertas === '58mm' ? 'w-[250px]' : 'w-[300px]'} rounded-lg border border-dashed border-slate-300 bg-white p-4 font-mono text-[11px] text-slate-700 shadow-xs`}>
+        <p className="text-center text-sm font-bold">{tpl.namaToko}</p>
+        {tpl.alamat && <p className="text-center text-[10px] text-slate-500">{tpl.alamat}</p>}
+        {tpl.telepon && <p className="text-center text-[10px] text-slate-500">Telp: {tpl.telepon}</p>}
+        {tpl.headerPesan && <p className="text-center text-[10px] text-slate-500">{tpl.headerPesan}</p>}
         <div className="my-2 border-t border-dashed border-slate-300" />
-        <div className="flex justify-between"><span>No</span><span>{trx.nomor}</span></div>
-        <div className="flex justify-between"><span>Waktu</span><span>{tanggalJam(trx.waktu)}</span></div>
-        <div className="flex justify-between"><span>Kasir</span><span>{namaKasir}</span></div>
+        {tpl.tampilkanNomor !== false && (
+          <div className="flex justify-between"><span>No</span><span>{trx.nomor}</span></div>
+        )}
+        {tpl.tampilkanWaktu !== false && (
+          <div className="flex justify-between"><span>Waktu</span><span>{tanggalJam(trx.waktu)}</span></div>
+        )}
+        {tpl.tampilkanKasir !== false && (
+          <div className="flex justify-between"><span>Kasir</span><span>{namaKasir}</span></div>
+        )}
+        {trx.pelanggan && (
+          <div className="flex justify-between"><span>Pelanggan</span><span>{trx.pelanggan}</span></div>
+        )}
         <div className="my-2 border-t border-dashed border-slate-300" />
         {items.map((i, idx) => {
           const hargaAsli = i.qty * i.harga
-          const diskon = i.diskonItem || 0
+          const diskon = tpl.tampilkanDiskonItem !== false ? (i.diskonItem || 0) : 0
           return (
             <div key={idx} className="mb-1">
               <p>{i.nama}</p>
               <div className="flex justify-between text-slate-500">
-                <span>{i.qty} {i.satuan} x {angka(i.harga)}</span>
+                <span>{i.qty}{tpl.tampilkanSatuan !== false && i.satuan ? ` ${i.satuan}` : ''} x {angka(i.harga)}</span>
                 <span>{angka(hargaAsli)}</span>
               </div>
               {diskon > 0 && (
@@ -144,21 +158,31 @@ function StrukView({ trx, namaKasir }: { trx: Transaksi; namaKasir: string }) {
           )
         })}
         <div className="my-2 border-t border-dashed border-slate-300" />
-        <div className="flex justify-between"><span>Jumlah Item</span><span>{totalItem}</span></div>
+        {tpl.tampilkanTotalItem !== false && (
+          <div className="flex justify-between"><span>Jumlah Item</span><span>{totalItem}</span></div>
+        )}
         <div className="flex justify-between"><span>Subtotal</span><span>{angka(subtotalKotor)}</span></div>
         {totalDiskonItem > 0 && diskonNota > 0 ? (
           <>
-            <div className="flex justify-between text-slate-500"><span>Diskon Item</span><span>-{angka(totalDiskonItem)}</span></div>
-            <div className="flex justify-between text-slate-500"><span>Diskon Nota</span><span>-{angka(diskonNota)}</span></div>
+            {tpl.tampilkanDiskonItem !== false && (
+              <div className="flex justify-between text-slate-500"><span>Diskon Item</span><span>-{angka(totalDiskonItem)}</span></div>
+            )}
+            {tpl.tampilkanDiskonNota !== false && (
+              <div className="flex justify-between text-slate-500"><span>Diskon Nota</span><span>-{angka(diskonNota)}</span></div>
+            )}
           </>
         ) : totalDiskon > 0 ? (
           <div className="flex justify-between text-slate-500"><span>Diskon</span><span>-{angka(totalDiskon)}</span></div>
         ) : null}
         <div className="flex justify-between text-sm font-bold"><span>TOTAL</span><span>{angka(trx.total)}</span></div>
-        <div className="flex justify-between"><span>{trx.metode.toUpperCase()}</span><span>{angka(trx.dibayar)}</span></div>
+        {tpl.tampilkanMetodeBayar !== false && (
+          <div className="flex justify-between"><span>{trx.metode.toUpperCase()}</span><span>{angka(trx.dibayar)}</span></div>
+        )}
         <div className="flex justify-between"><span>Kembali</span><span>{angka(trx.kembalian)}</span></div>
         <div className="my-2 border-t border-dashed border-slate-300" />
-        <p className="text-center text-[10px]">Terima kasih telah berbelanja</p>
+        {tpl.footerPesan1 && <p className="text-center text-[10px]">{tpl.footerPesan1}</p>}
+        {tpl.footerPesan2 && <p className="text-center text-[10px]">{tpl.footerPesan2}</p>}
+        {tpl.footerPesan3 && <p className="text-center text-[10px]">{tpl.footerPesan3}</p>}
       </div>
       <div className="mt-4 flex justify-center gap-2">
         <Button variant="secondary" onClick={cetak}>Cetak ke Printer Thermal</Button>
@@ -171,7 +195,7 @@ function StrukView({ trx, namaKasir }: { trx: Transaksi; namaKasir: string }) {
 }
 
 export function KasirPOS() {
-  const { produk, kategori, shifts, buatTransaksi } = useDataStore()
+  const { produk, kategori, shifts, buatTransaksi, pelanggan, simpanPelanggan } = useDataStore()
   const {
     currentUser, cart, diskonNota, addToCart, setQty, setDiskonItem, removeFromCart,
     clearCart, setDiskonNota, offlineMode, queuePending, setShiftId,
@@ -211,7 +235,42 @@ export function KasirPOS() {
   const [mobileView, setMobileView] = useState<'catalog' | 'cart'>('catalog')
   const [varianModalProduk, setVarianModalProduk] = useState<Produk | null>(null)
 
+  // Customer / CRM State
+  const pelangganContainerRef = useRef<HTMLDivElement>(null)
+  const [namaPelanggan, setNamaPelanggan] = useState('')
+  const [pelangganDropdownOpen, setPelangganDropdownOpen] = useState(false)
+
   const openShift = shifts.find((s) => s.kasirId === currentUser?.id && s.status === 'buka') ?? null
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (pelangganContainerRef.current && !pelangganContainerRef.current.contains(e.target as Node)) {
+        setPelangganDropdownOpen(false)
+      }
+    }
+    if (pelangganDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [pelangganDropdownOpen])
+
+  const pelangganFiltered = useMemo(() => {
+    const q = namaPelanggan.toLowerCase().trim()
+    const list = pelanggan || []
+    if (!q) return list.slice(0, 8)
+    return list.filter(
+      (p) =>
+        p.nama.toLowerCase().includes(q) ||
+        (p.telepon && p.telepon.includes(q)) ||
+        (p.alamat && p.alamat.toLowerCase().includes(q)),
+    ).slice(0, 8)
+  }, [pelanggan, namaPelanggan])
+
+  const isExactPelangganMatch = useMemo(() => {
+    const q = namaPelanggan.trim().toLowerCase()
+    if (!q) return true
+    return (pelanggan || []).some((p) => p.nama.trim().toLowerCase() === q)
+  }, [pelanggan, namaPelanggan])
 
   useEffect(() => {
     if (openShift) setShiftId(openShift.id)
@@ -388,6 +447,7 @@ export function KasirPOS() {
     }
     setMetode('tunai')
     setDibayar(Math.ceil(total / 5000) * 5000)
+    setPelangganDropdownOpen(false)
     setBayarOpen(true)
   }
 
@@ -398,12 +458,19 @@ export function KasirPOS() {
       return
     }
     const bayarFinal = metode === 'tunai' ? dibayar : total
+    const namaCust = namaPelanggan.trim()
+
+    // Otomatis daftarkan pelanggan baru jika nama diisi
+    if (namaCust) {
+      simpanPelanggan({ nama: namaCust })
+    }
 
     if (offlineMode) {
       queuePending({
         id: `OFF-${Date.now()}`,
         shiftId: openShift.id,
         kasirId: currentUser.id,
+        pelanggan: namaCust || undefined,
         detail: [...cart],
         diskonNota,
         metode,
@@ -416,6 +483,7 @@ export function KasirPOS() {
         pesan: 'Akan tersinkron otomatis saat koneksi pulih.',
       })
       clearCart()
+      setNamaPelanggan('')
       setBayarOpen(false)
       focusSearch()
       return
@@ -424,6 +492,7 @@ export function KasirPOS() {
     const trx = buatTransaksi({
       shiftId: openShift.id,
       kasirId: currentUser.id,
+      pelanggan: namaCust || undefined,
       detail: cart.map((c, i) => ({
         id: `DTL-${Date.now()}-${i}`,
         produkId: c.produkId,
@@ -446,6 +515,7 @@ export function KasirPOS() {
       dibayar: bayarFinal,
     })
     clearCart()
+    setNamaPelanggan('')
     setBayarOpen(false)
     setStruk(trx)
     setMobileView('catalog')
@@ -733,6 +803,145 @@ export function KasirPOS() {
               <p className="mt-2 inline-block rounded bg-amber-500/20 px-2 py-1 text-[11px] text-amber-300">
                 Mode offline: transaksi akan diantrekan
               </p>
+            )}
+          </div>
+
+          {/* Input Nama Pelanggan (Searchable Combobox & Auto Add) */}
+          <div className="relative" ref={pelangganContainerRef}>
+            <div className="mb-1 flex items-center justify-between">
+              <Label className="mb-0 text-xs font-semibold text-slate-700">
+                Nama Pelanggan <span className="font-normal text-slate-400">(Opsional)</span>
+              </Label>
+              {namaPelanggan && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNamaPelanggan('')
+                    setPelangganDropdownOpen(false)
+                  }}
+                  className="text-[11px] font-medium text-slate-400 hover:text-rose-600 transition"
+                >
+                  ✕ Hapus (Pelanggan Umum)
+                </button>
+              )}
+            </div>
+
+            <div className="relative">
+              <input
+                type="text"
+                value={namaPelanggan}
+                onChange={(e) => {
+                  setNamaPelanggan(e.target.value)
+                  setPelangganDropdownOpen(true)
+                }}
+                onFocus={() => setPelangganDropdownOpen(true)}
+                placeholder="Cari atau ketik nama pelanggan..."
+                className="w-full rounded-lg border border-slate-300 bg-white py-2 pl-9 pr-8 text-sm text-slate-800 placeholder-slate-400 transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+              />
+              <span className="pointer-events-none absolute left-3 top-2.5 text-slate-400">
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </span>
+              {namaPelanggan && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNamaPelanggan('')
+                    setPelangganDropdownOpen(false)
+                  }}
+                  className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {/* Dropdown Hasil Pencarian / Tambah Baru */}
+            {pelangganDropdownOpen && (
+              <div className="absolute z-50 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white py-1.5 shadow-xl ring-1 ring-black/5">
+                {/* Opsi Pelanggan Umum */}
+                <div
+                  className="flex cursor-pointer items-center justify-between px-3 py-2 text-xs text-slate-600 hover:bg-slate-50 transition"
+                  onClick={() => {
+                    setNamaPelanggan('')
+                    setPelangganDropdownOpen(false)
+                  }}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-slate-500 text-[11px] font-bold">
+                      -
+                    </span>
+                    <span className="font-medium text-slate-700">Pelanggan Umum (Tanpa Nama)</span>
+                  </div>
+                  {!namaPelanggan && (
+                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600">
+                      Dipilih
+                    </span>
+                  )}
+                </div>
+
+                {/* List Pelanggan Terdaftar */}
+                {pelangganFiltered.map((p) => {
+                  const terpilih = namaPelanggan.trim().toLowerCase() === p.nama.toLowerCase()
+                  return (
+                    <div
+                      key={p.id}
+                      className={`flex cursor-pointer items-center justify-between px-3 py-2 text-xs transition ${
+                        terpilih ? 'bg-brand-50 text-brand-900 font-semibold' : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                      onClick={() => {
+                        setNamaPelanggan(p.nama)
+                        setPelangganDropdownOpen(false)
+                      }}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-700 text-[11px] font-bold">
+                          {p.nama.charAt(0).toUpperCase()}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-slate-800">{p.nama}</p>
+                          <p className="text-[10px] text-slate-400 truncate">
+                            {p.telepon ? `📞 ${p.telepon}` : ''} {p.alamat ? `• 📍 ${p.alamat}` : ''}
+                          </p>
+                        </div>
+                      </div>
+                      {terpilih && (
+                        <span className="text-xs text-brand-600 font-bold">✓</span>
+                      )}
+                    </div>
+                  )
+                })}
+
+                {/* Opsi Tambah Nama Baru jika belum ada exact match */}
+                {namaPelanggan.trim().length > 0 && !isExactPelangganMatch && (
+                  <div
+                    className="mt-1 border-t border-slate-100 bg-emerald-50/70 px-3 py-2.5 text-xs cursor-pointer hover:bg-emerald-100/80 transition"
+                    onClick={() => {
+                      setPelangganDropdownOpen(false)
+                    }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white text-xs font-bold">
+                          +
+                        </span>
+                        <div>
+                          <p className="font-bold text-emerald-800">
+                            Daftarkan "{namaPelanggan.trim()}"
+                          </p>
+                          <p className="text-[10px] text-emerald-600">
+                            Otomatis tersimpan sebagai pelanggan baru saat transaksi selesai
+                          </p>
+                        </div>
+                      </div>
+                      <span className="rounded bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white shadow-xs">
+                        Baru
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
 

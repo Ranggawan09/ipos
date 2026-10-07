@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
+import { DEFAULT_TEMPLATE_NOTA } from '@/types'
 import type {
   BarangKeluar,
   HutangSupplier,
@@ -17,6 +18,8 @@ import type {
   Supplier,
   Transaksi,
   User,
+  TemplateNota,
+  Pelanggan,
 } from '@/types'
 import {
   buildBarangKeluar,
@@ -30,10 +33,12 @@ import {
   KATEGORI_SEED,
   SUPPLIER_SEED,
   USER_SEED,
+  PELANGGAN_SEED,
   isoDaysAgo,
 } from '@/data/seed'
 import { syncService } from '@/lib/syncService'
 import { rupiah } from '@/lib/format'
+import { SUMBER_DASAR, terapkanPerubahanModal } from '@/lib/hargaModal'
 import { useToast } from './useToast'
 
 // ---------------------------------------------------------------------------
@@ -85,6 +90,16 @@ export type DataState = {
   pengemasan: Pengemasan[]
   daftarSatuan: string[]
   daftarBarangKeluar: BarangKeluar[]
+  templateNota: TemplateNota
+  pelanggan: Pelanggan[]
+
+  // CRM Pelanggan
+  simpanPelanggan: (p: Omit<Pelanggan, 'id' | 'createdAt'> & { id?: string }) => Pelanggan
+  hapusPelanggan: (id: string) => void
+
+  // Template Nota Kasir
+  simpanTemplateNota: (t: Partial<TemplateNota>) => void
+  resetTemplateNota: () => void
 
   // Kamus Satuan
   tambahSatuanKamus: (satuan: string) => void
@@ -158,6 +173,7 @@ export type DataState = {
   buatTransaksi: (input: {
     shiftId: string
     kasirId: string
+    pelanggan?: string
     detail: Transaksi['detail']
     diskonNota: number
     metode: Transaksi['metode']
@@ -208,6 +224,8 @@ function freshData() {
     pengemasan: structuredClone(initialPengemasan),
     daftarSatuan: [...DEFAULT_SATUAN],
     daftarBarangKeluar: structuredClone(initialBarangKeluar),
+    templateNota: structuredClone(DEFAULT_TEMPLATE_NOTA),
+    pelanggan: structuredClone(PELANGGAN_SEED),
   }
 }
 
@@ -215,6 +233,45 @@ export const useDataStore = create<DataState>()(
   persist(
     (set, get) => ({
       ...freshData(),
+
+      simpanPelanggan: (p) => {
+        const list = get().pelanggan || []
+        if (p.id) {
+          const updated = {
+            ...p,
+            id: p.id,
+            createdAt: list.find((x) => x.id === p.id)?.createdAt || new Date().toISOString(),
+          } as Pelanggan
+          set({ pelanggan: list.map((x) => (x.id === p.id ? updated : x)) })
+          return updated
+        }
+        const existing = list.find((x) => x.nama.toLowerCase().trim() === p.nama.toLowerCase().trim())
+        if (existing) {
+          return existing
+        }
+        const baru: Pelanggan = {
+          id: `CUST-${Date.now().toString().slice(-6)}`,
+          nama: p.nama.trim(),
+          telepon: p.telepon?.trim() || undefined,
+          alamat: p.alamat?.trim() || undefined,
+          catatan: p.catatan?.trim() || undefined,
+          createdAt: new Date().toISOString(),
+        }
+        set({ pelanggan: [baru, ...list] })
+        return baru
+      },
+
+      hapusPelanggan: (id) => {
+        set({ pelanggan: (get().pelanggan || []).filter((x) => x.id !== id) })
+      },
+
+      simpanTemplateNota: (tpl) => {
+        set({ templateNota: { ...get().templateNota, ...tpl } })
+      },
+
+      resetTemplateNota: () => {
+        set({ templateNota: structuredClone(DEFAULT_TEMPLATE_NOTA) })
+      },
 
       tambahSatuanKamus: (satuan) => {
         const s = satuan.trim().toLowerCase()
@@ -287,38 +344,21 @@ export const useDataStore = create<DataState>()(
             p.tglExpired = item.tglExpired
           }
 
-          // Update otomatis harga modal (hargaBeli) produk di master data
+          // Update otomatis harga modal (hargaBeli) produk di master data.
+          // Bagi modal ke semua satuan mengikuti setelan produk (bagiModalOtomatis),
+          // harga jual menyesuaikan agar margin tetap (margin statis).
           if (updateHargaModal && item.hargaBeli && item.hargaBeli > 0) {
-            const hargaBeliDasarBaru = Math.round(item.hargaBeli / mult)
-            p.hargaBeli = hargaBeliDasarBaru
-
-            // Sinkronisasi ke seluruh tingkatan satuan bertingkat & pecahan (jika ada)
-            if (p.satuanBertingkat && p.satuanBertingkat.length > 0) {
-              p.satuanBertingkat = p.satuanBertingkat.map((tier) => {
-                let tierHargaBeli = tier.hargaBeli
-                // Jika satuan tier ini yang langsung dibeli dalam penerimaan
-                if (
-                  (item.satuanId && item.satuanId === tier.id) ||
-                  (item.satuan && item.satuan.toLowerCase() === tier.namaSatuan.toLowerCase())
-                ) {
-                  tierHargaBeli = item.hargaBeli
-                } else {
-                  // Satuan bertingkat lainnya disesuaikan proporsional dengan harga beli dasar baru
-                  tierHargaBeli = Math.round(hargaBeliDasarBaru * tier.multiplierToBase)
-                }
-
-                // Hitung ulang margin persen agar tetap sinkron dengan harga jual saat ini
-                const marginPersen = tierHargaBeli > 0
-                  ? Math.round(((tier.hargaJual - tierHargaBeli) / tierHargaBeli) * 100 * 10) / 10
-                  : 0
-
-                return {
-                  ...tier,
-                  hargaBeli: tierHargaBeli,
-                  marginPersen,
-                }
-              })
-            }
+            const tierIdx = (p.satuanBertingkat ?? []).findIndex(
+              (tier) =>
+                (item.satuanId && item.satuanId === tier.id) ||
+                (item.satuan && item.satuan.toLowerCase() === tier.namaSatuan.toLowerCase()),
+            )
+            const hasil = tierIdx >= 0
+              ? terapkanPerubahanModal(p, tierIdx, item.hargaBeli)
+              : terapkanPerubahanModal(p, SUMBER_DASAR, Math.round(item.hargaBeli / mult))
+            p.hargaBeli = hasil.hargaBeli
+            p.hargaJual = hasil.hargaJual
+            p.satuanBertingkat = hasil.satuanBertingkat
           }
 
           if (supplierId && !p.supplierId) {
@@ -811,7 +851,7 @@ export const useDataStore = create<DataState>()(
         })
       },
 
-      buatTransaksi: ({ shiftId, kasirId, detail, diskonNota, metode, dibayar, status = 'selesai' }) => {
+      buatTransaksi: ({ shiftId, kasirId, pelanggan, detail, diskonNota, metode, dibayar, status = 'selesai' }) => {
         const produks = get().produk.map((p) => ({ ...p }))
         const now = new Date().toISOString()
         const subtotal = detail.reduce((a, d) => a + d.subtotal, 0)
@@ -824,6 +864,7 @@ export const useDataStore = create<DataState>()(
           nomor: `INV/${new Date().toISOString().slice(0, 10).replace(/-/g, '')}/${String(seq).padStart(4, '0')}`,
           shiftId,
           kasirId,
+          pelanggan: pelanggan?.trim() || undefined,
           detail,
           subtotal,
           diskonNota,
@@ -1035,6 +1076,12 @@ export const useDataStore = create<DataState>()(
       storage: createJSONStorage(() => localStorage),
       onRehydrateStorage: () => (state) => {
         if (state) {
+          if (!state.templateNota) {
+            state.templateNota = structuredClone(DEFAULT_TEMPLATE_NOTA)
+          }
+          if (!state.pelanggan || state.pelanggan.length === 0) {
+            state.pelanggan = structuredClone(PELANGGAN_SEED)
+          }
           if (!state.daftarBarangKeluar || state.daftarBarangKeluar.length === 0) {
             state.daftarBarangKeluar = buildBarangKeluar(state.produk || initialProduk, state.supplier || SUPPLIER_SEED)
           }
@@ -1259,12 +1306,13 @@ export const useDataStore = create<DataState>()(
         const {
           users, kategori, supplier, produk, pergerakan, transaksi, shifts,
           pengeluaran, hutang, penerimaan, logSinkron, resepKonversi, pengemasan,
-          daftarSatuan, daftarBarangKeluar,
+          daftarSatuan, daftarBarangKeluar, templateNota, pelanggan,
         } = s
         return {
           users, kategori, supplier, produk, pergerakan, transaksi, shifts,
           pengeluaran, hutang, penerimaan, logSinkron, resepKonversi, pengemasan,
-          daftarSatuan, daftarBarangKeluar,
+          daftarSatuan, daftarBarangKeluar, templateNota: templateNota || DEFAULT_TEMPLATE_NOTA,
+          pelanggan: pelanggan || PELANGGAN_SEED,
         } as DataState
       },
     },

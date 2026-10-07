@@ -3,7 +3,8 @@ import type { Supplier, Produk } from '@/types'
 import { useDataStore } from '@/store/useDataStore'
 import { useToast } from '@/store/useToast'
 import { angka, rupiah } from '@/lib/format'
-import { Badge, Button, Input, Label, Modal, Select } from '@/components/ui'
+import { Badge, Button, Input, Label, Modal } from '@/components/ui'
+import { SelectProduk } from '@/components/SelectProduk'
 
 export function ModalKelolaProdukSupplier({
   open,
@@ -199,22 +200,16 @@ export function ModalKelolaProdukSupplier({
             <div className="flex flex-wrap items-end gap-2.5">
               <div className="min-w-[260px] flex-1">
                 <Label>Pilih Produk Toko</Label>
-                <Select
+                <SelectProduk
                   value={selectedProdukId}
-                  onChange={(e) => setSelectedProdukId(e.target.value)}
-                  className="text-xs"
-                >
-                  <option value="">-- Cari / Pilih Produk Toko --</option>
-                  {produkTersedia.map((p) => {
+                  onChange={(id) => setSelectedProdukId(id)}
+                  daftarProdukCustom={produkTersedia}
+                  placeholder="-- Cari / Pilih Produk Toko --"
+                  labelSubtext={(p: Produk) => {
                     const supLain = getNamaSupplierLain(p.supplierId)
-                    return (
-                      <option key={p.id} value={p.id}>
-                        {p.nama} ({p.sku}) | Stok: {p.stok} {p.satuan}
-                        {supLain ? ` [Pindah dari: ${supLain}]` : ' [Belum ada supplier]'}
-                      </option>
-                    )
-                  })}
-                </Select>
+                    return supLain ? `[Pindah dari: ${supLain}]` : '[Belum ada supplier]'
+                  }}
+                />
               </div>
               <Button size="sm" onClick={handleHubungkan} disabled={!selectedProdukId}>
                 Hubungkan Produk

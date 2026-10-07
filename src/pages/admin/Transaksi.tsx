@@ -31,7 +31,7 @@ const getHariIni = () => {
 }
 
 export function TransaksiAdmin() {
-  const { transaksi, users, shifts, voidTransaksi, produk } = useDataStore()
+  const { transaksi, users, shifts, voidTransaksi, produk, templateNota } = useDataStore()
   const currentUser = useSessionStore((s) => s.currentUser)
   const isOwner = currentUser?.role === 'owner'
   const push = useToast((s) => s.push)
@@ -306,8 +306,7 @@ export function TransaksiAdmin() {
                   const diskonNota = detail.diskonNominal || 0
                   const totalItem = detail.detail.reduce((a, d) => a + d.qty, 0)
                   cetakStruk({
-                    namaToko: 'TOKO PASAR JAYA',
-                    alamat: 'Pasar Induk Blok A No. 12, Jakarta',
+                    template: templateNota,
                     nomor: detail.nomor,
                     waktu: tanggalJam(detail.waktu),
                     kasir: namaKasir(detail.kasirId),

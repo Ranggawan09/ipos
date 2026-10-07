@@ -63,6 +63,8 @@ export type Produk = {
   tglExpired?: string // Tanggal kedaluwarsa produk (YYYY-MM-DD)
   varian?: VarianBobot[]
   satuanBertingkat?: SatuanBertingkat[]
+  bagiModalOtomatis?: boolean // undefined = aktif. Bagi modal proporsional ke semua satuan saat salah satu modal berubah
+  modeMargin?: 'persen' | 'nominal' // undefined = 'nominal'. Jenis margin yang dikunci (statis) saat modal berubah
 }
 
 export type JenisPergerakan =
@@ -283,4 +285,57 @@ export type Pengemasan = {
   biayaKemasan: number
   userId: string
   waktu: string
+}
+
+// ---- Template Nota / Struk Kasir ----
+
+export type TemplateNota = {
+  namaToko: string
+  alamat: string
+  telepon: string
+  headerPesan?: string
+  footerPesan1: string
+  footerPesan2: string
+  footerPesan3?: string
+  lebarKertas: '58mm' | '80mm'
+  ukuranFont: 'kecil' | 'normal' | 'besar'
+  tampilkanKasir: boolean
+  tampilkanWaktu: boolean
+  tampilkanNomor: boolean
+  tampilkanTotalItem: boolean
+  tampilkanSatuan: boolean
+  tampilkanDiskonItem: boolean
+  tampilkanDiskonNota: boolean
+  tampilkanMetodeBayar: boolean
+}
+
+export const DEFAULT_TEMPLATE_NOTA: TemplateNota = {
+  namaToko: 'TOKO PASAR JAYA',
+  alamat: 'Pasar Induk Blok A No. 12, Jakarta',
+  telepon: '0812-3456-7890',
+  headerPesan: '',
+  footerPesan1: 'Terima kasih telah berbelanja',
+  footerPesan2: 'Barang yang sudah dibeli tidak dapat ditukar',
+  footerPesan3: '',
+  lebarKertas: '80mm',
+  ukuranFont: 'normal',
+  tampilkanKasir: true,
+  tampilkanWaktu: true,
+  tampilkanNomor: true,
+  tampilkanTotalItem: true,
+  tampilkanSatuan: true,
+  tampilkanDiskonItem: true,
+  tampilkanDiskonNota: true,
+  tampilkanMetodeBayar: true,
+}
+
+// ---- CRM / Pelanggan ----
+
+export type Pelanggan = {
+  id: string
+  nama: string
+  telepon?: string
+  alamat?: string
+  catatan?: string
+  createdAt: string
 }

@@ -6,6 +6,7 @@ import { useToast } from '@/store/useToast'
 import { rupiah, tanggalJam } from '@/lib/format'
 import { cetakPurchaseOrder, cetakSemuaPurchaseOrder, type POData, type POItem } from '@/lib/print'
 import { Badge, Button, Input, Modal, Select } from '@/components/ui'
+import { SelectProduk } from '@/components/SelectProduk'
 
 export function ModalRestockSupplier({
   open,
@@ -478,32 +479,13 @@ export function ModalRestockSupplier({
                 <label className="mb-1 block text-[11px] font-semibold text-slate-700">
                   Pilih Barang <span className="text-rose-500">*</span>
                 </label>
-                <Select
+                <SelectProduk
                   value={manualProdukId}
-                  onChange={(e) => handlePilihManualProduk(e.target.value)}
+                  onChange={(produkId) => handlePilihManualProduk(produkId)}
                   disabled={!manualSupplierId}
-                  className="w-full bg-white text-xs disabled:bg-slate-100"
-                >
-                  <option value="">-- Pilih Barang yang Akan Direstock --</option>
-                  {prodsSupplierIni.length > 0 && (
-                    <optgroup label="Barang dari Supplier Ini">
-                      {prodsSupplierIni.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.nama} [Stok: {p.stok} / Min: {p.stokMinimum} {p.satuan}]
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                  {prodsLainnya.length > 0 && (
-                    <optgroup label="Barang Lainnya / Belum Terikat">
-                      {prodsLainnya.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.nama} [Stok: {p.stok} / Min: {p.stokMinimum} {p.satuan}]
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                </Select>
+                  placeholder="-- Pilih Barang yang Akan Direstock --"
+                  daftarProdukCustom={[...prodsSupplierIni, ...prodsLainnya]}
+                />
               </div>
 
               {/* Input Qty & Tombol Tambah */}

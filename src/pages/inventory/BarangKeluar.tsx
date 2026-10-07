@@ -6,6 +6,7 @@ import { useToast } from '@/store/useToast'
 import { rupiah, tanggalJam } from '@/lib/format'
 import { cetakSuratJalanBarangKeluar } from '@/lib/print'
 import { Badge, Button, Card, DataTable, FR, Input, Label, Modal, PageHeader, Select, StatCard, Textarea } from '@/components/ui'
+import { SelectProduk } from '@/components/SelectProduk'
 
 type BarisItem = {
   produkId: string
@@ -717,17 +718,10 @@ export function BarangKeluar() {
                     return (
                       <tr key={idx} className={isExceed ? 'bg-rose-50/50' : ''}>
                         <td className="p-2">
-                          <Select
+                          <SelectProduk
                             value={baris.produkId}
-                            onChange={(e) => ubahBaris(idx, { produkId: e.target.value })}
-                            className="text-xs py-1"
-                          >
-                            {produk.map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {p.nama} ({p.sku})
-                              </option>
-                            ))}
-                          </Select>
+                            onChange={(produkId) => ubahBaris(idx, { produkId })}
+                          />
                         </td>
                         <td className="p-2 text-center">
                           <span
