@@ -7,8 +7,18 @@ import { rupiah, tanggalSingkat, toDateInput } from '@/lib/format'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Badge, Button, Card, CurrencyInput, DataTable, FR, Input, Label, Modal, PageHeader, Select, StatCard } from '@/components/ui'
 
-// Kategori pengeluaran operasional toko: hanya Operasional Kasir dan Lain-lain
-const KATEGORI = [
+// Kategori pengeluaran admin (kasir & admin)
+const KATEGORI_ADMIN = [
+  { value: 'operasional_kasir', label: 'Operasional Kasir' },
+  { value: 'lainnya', label: 'Lain-lain' },
+] as const
+
+// Kategori pengeluaran lengkap untuk Owner
+const KATEGORI_OWNER = [
+  { value: 'gaji', label: 'Gaji Karyawan' },
+  { value: 'listrik', label: 'Listrik & Air' },
+  { value: 'sewa', label: 'Sewa Tempat' },
+  { value: 'transport', label: 'Transport' },
   { value: 'operasional_kasir', label: 'Operasional Kasir' },
   { value: 'lainnya', label: 'Lain-lain' },
 ] as const
@@ -16,10 +26,19 @@ const KATEGORI = [
 const LABEL_KATEGORI: Record<string, string> = {
   operasional_kasir: 'Operasional Kasir',
   lainnya: 'Lain-lain',
-  listrik: 'Listrik & air',
-  sewa: 'Sewa tempat',
-  gaji: 'Gaji karyawan',
+  listrik: 'Listrik & Air',
+  sewa: 'Sewa Tempat',
+  gaji: 'Gaji Karyawan',
   transport: 'Transport',
+}
+
+const WARNA_KATEGORI: Record<string, 'blue' | 'amber' | 'green' | 'violet' | 'red' | 'purple'> = {
+  operasional_kasir: 'blue',
+  gaji: 'green',
+  sewa: 'red',
+  listrik: 'violet',
+  transport: 'purple',
+  lainnya: 'amber',
 }
 
 const kosong: Omit<TPengeluaran, 'id'> = {
@@ -39,6 +58,9 @@ export function Pengeluaran() {
   const [edit, setEdit] = useState<TPengeluaran | null>(null)
   const [form, setForm] = useState(kosong)
   const [hapus, setHapus] = useState<TPengeluaran | null>(null)
+
+  const [cari, setCari] = useState('')
+  const [filterKat, setFilterKat] = useState('semua')
 
   const isOwner = currentUser?.role === 'owner'
 
@@ -69,6 +91,17 @@ export function Pengeluaran() {
       })
       .sort((a, b) => (a.tanggal < b.tanggal ? 1 : -1))
   }, [pengeluaran, isOwner, userMap])
+
+  const filteredRows = useMemo(() => {
+    return rows.filter((p) => {
+      const matchKat = filterKat === 'semua' || p.kategori === filterKat
+      const namaP = (userMap.get(p.userId)?.nama ?? p.userId).toLowerCase()
+      const ket = p.keterangan.toLowerCase()
+      const q = cari.toLowerCase().trim()
+      const matchCari = !q || ket.includes(q) || namaP.includes(q)
+      return matchKat && matchCari
+    })
+  }, [rows, filterKat, cari, userMap])
 
   const total = rows.reduce((a, p) => a + p.jumlah, 0)
   const bulanIni = rows
@@ -114,38 +147,47 @@ export function Pengeluaran() {
     simpanPengeluaran({
       ...form,
       id: edit?.id,
+      shiftId: edit?.shiftId,
       tanggal: new Date(form.tanggal).toISOString(),
-      userId: currentUser?.id ?? 'USR-01',
+      userId: edit?.userId ?? currentUser?.id ?? (isOwner ? 'USR-06' : 'USR-01'),
     })
     push({ tipe: 'sukses', judul: edit ? 'Pengeluaran diperbarui' : 'Pengeluaran dicatat' })
     setModal(false)
   }
 
-  const namaUser = (id: string) => users.find((u) => u.id === id)?.nama ?? id
-
   const opsiKategoriForm = useMemo(() => {
-    if (isOwner && form.kategori) {
-      const ada = KATEGORI.some((k) => k.value === form.kategori)
-      if (!ada) {
-        return [...KATEGORI, { value: form.kategori, label: LABEL_KATEGORI[form.kategori] ?? form.kategori }]
-      }
-    }
-    return KATEGORI
-  }, [isOwner, form.kategori])
+    return isOwner ? KATEGORI_OWNER : KATEGORI_ADMIN
+  }, [isOwner])
+
+  const opsiFilterKategori = useMemo(() => {
+    return isOwner ? KATEGORI_OWNER : KATEGORI_ADMIN
+  }, [isOwner])
 
   return (
     <>
       <PageHeader
         judul="Pengeluaran Operasional"
-        deskripsi={isOwner ? "Pantauan biaya operasional toko (mode baca owner)." : "Pencatatan biaya operasional toko: operasional kasir dan lain-lain."}
+        deskripsi={
+          isOwner
+            ? 'Pencatatan dan pemantauan seluruh biaya operasional toko (gaji, sewa tempat, listrik & air, transport, dan operasional lainnya).'
+            : 'Pencatatan biaya operasional toko: operasional kasir dan lain-lain.'
+        }
         aksi={
           <>
             <FR kode="FR-FIN-03" />
-            {!isOwner && (
-              <Button onClick={() => { setEdit(null); setForm({ ...kosong, tanggal: toDateInput(new Date().toISOString()) }); setModal(true) }}>
-                Catat Pengeluaran
-              </Button>
-            )}
+            <Button
+              onClick={() => {
+                setEdit(null)
+                setForm({
+                  ...kosong,
+                  kategori: isOwner ? 'gaji' : 'operasional_kasir',
+                  tanggal: toDateInput(new Date().toISOString()),
+                })
+                setModal(true)
+              }}
+            >
+              Catat Pengeluaran
+            </Button>
           </>
         }
       />
@@ -172,37 +214,96 @@ export function Pengeluaran() {
         </Card>
 
         <Card title="Riwayat Pengeluaran" className="lg:col-span-2">
+          <div className="mb-3 flex flex-wrap gap-2">
+            <div className="min-w-40 flex-1">
+              <Input
+                placeholder="Cari keterangan atau pencatat..."
+                value={cari}
+                onChange={(e) => setCari(e.target.value)}
+              />
+            </div>
+            <div className="w-44">
+              <Select value={filterKat} onChange={(e) => setFilterKat(e.target.value)}>
+                <option value="semua">Semua Kategori</option>
+                {opsiFilterKategori.map((k) => (
+                  <option key={k.value} value={k.value}>
+                    {k.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </div>
+
           <DataTable
-            data={rows}
+            data={filteredRows}
             kolom={[
-              { key: 'tanggal', header: 'Tanggal', render: (p) => <span className="text-xs text-slate-500">{tanggalSingkat(p.tanggal)}</span> },
-              { key: 'kategori', header: 'Kategori', render: (p) => {
-                const warna: 'blue' | 'amber' | 'green' | 'violet' | 'red' =
-                  p.kategori === 'operasional_kasir' ? 'blue' :
-                  p.kategori === 'gaji' ? 'green' :
-                  p.kategori === 'sewa' ? 'red' :
-                  p.kategori === 'listrik' ? 'violet' : 'amber'
-                return (
-                  <Badge warna={warna}>
-                    {LABEL_KATEGORI[p.kategori] ?? p.kategori}
-                  </Badge>
-                )
-              } },
+              {
+                key: 'tanggal',
+                header: 'Tanggal',
+                render: (p) => <span className="text-xs text-slate-500">{tanggalSingkat(p.tanggal)}</span>,
+              },
+              {
+                key: 'kategori',
+                header: 'Kategori',
+                render: (p) => {
+                  const warna = WARNA_KATEGORI[p.kategori] ?? 'amber'
+                  return (
+                    <Badge warna={warna}>
+                      {LABEL_KATEGORI[p.kategori] ?? p.kategori}
+                    </Badge>
+                  )
+                },
+              },
               { key: 'keterangan', header: 'Keterangan', className: 'text-slate-600' },
-              { key: 'userId', header: 'Dicatat oleh', render: (p) => <span className="text-xs text-slate-500">{namaUser(p.userId)}</span> },
-              { key: 'jumlah', header: 'Jumlah', align: 'right', render: (p) => <span className="font-medium text-rose-600">{rupiah(p.jumlah)}</span> },
-              { key: 'aksi', header: '', align: 'right', render: (p) => (
-                <div className="flex justify-end gap-1">
-                  {isOwner ? (
-                    <Button size="sm" variant="ghost" onClick={() => { setEdit(p); setForm({ ...p, tanggal: toDateInput(p.tanggal) }); setModal(true) }}>Lihat</Button>
-                  ) : (
-                    <>
-                      <Button size="sm" variant="ghost" onClick={() => { setEdit(p); setForm({ ...p, tanggal: toDateInput(p.tanggal) }); setModal(true) }}>Ubah</Button>
-                      <Button size="sm" variant="ghost" className="text-rose-600" onClick={() => setHapus(p)}>Hapus</Button>
-                    </>
-                  )}
-                </div>
-              ) },
+              {
+                key: 'userId',
+                header: 'Dicatat oleh',
+                render: (p) => {
+                  const user = userMap.get(p.userId)
+                  return (
+                    <div className="text-xs">
+                      <span className="font-medium text-slate-700">{user?.nama ?? p.userId}</span>
+                      {user && (
+                        <span className="ml-1 text-[10px] text-slate-400 capitalize">({user.role})</span>
+                      )}
+                    </div>
+                  )
+                },
+              },
+              {
+                key: 'jumlah',
+                header: 'Jumlah',
+                align: 'right',
+                render: (p) => <span className="font-medium text-rose-600">{rupiah(p.jumlah)}</span>,
+              },
+              {
+                key: 'aksi',
+                header: '',
+                align: 'right',
+                render: (p) => (
+                  <div className="flex justify-end gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setEdit(p)
+                        setForm({ ...p, tanggal: toDateInput(p.tanggal) })
+                        setModal(true)
+                      }}
+                    >
+                      Ubah
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-rose-600"
+                      onClick={() => setHapus(p)}
+                    >
+                      Hapus
+                    </Button>
+                  </div>
+                ),
+              },
             ]}
           />
         </Card>
@@ -211,16 +312,16 @@ export function Pengeluaran() {
       <Modal
         open={modal}
         onClose={() => setModal(false)}
-        title={isOwner ? 'Detail Pengeluaran (Read-Only)' : edit ? 'Ubah Pengeluaran' : 'Catat Pengeluaran'}
+        title={edit ? 'Ubah Pengeluaran' : 'Catat Pengeluaran'}
         footer={
-          isOwner ? (
-            <Button variant="secondary" onClick={() => setModal(false)}>Tutup</Button>
-          ) : (
-            <>
-              <Button variant="secondary" onClick={() => setModal(false)}>Batal</Button>
-              <Button onClick={simpan}>Simpan</Button>
-            </>
-          )
+          <>
+            <Button variant="secondary" onClick={() => setModal(false)}>
+              Batal
+            </Button>
+            <Button onClick={simpan}>
+              {edit ? 'Simpan Perubahan' : 'Simpan Pengeluaran'}
+            </Button>
+          </>
         }
       >
         <div className="space-y-4">
@@ -229,10 +330,13 @@ export function Pengeluaran() {
               <Label>Kategori</Label>
               <Select
                 value={form.kategori}
-                disabled={isOwner}
                 onChange={(e) => setForm({ ...form, kategori: e.target.value as TPengeluaran['kategori'] })}
               >
-                {opsiKategoriForm.map((k) => <option key={k.value} value={k.value}>{k.label}</option>)}
+                {opsiKategoriForm.map((k) => (
+                  <option key={k.value} value={k.value}>
+                    {k.label}
+                  </option>
+                ))}
               </Select>
             </div>
             <div>
@@ -240,7 +344,6 @@ export function Pengeluaran() {
               <Input
                 type="date"
                 value={form.tanggal}
-                disabled={isOwner}
                 onChange={(e) => setForm({ ...form, tanggal: e.target.value })}
               />
             </div>
@@ -249,16 +352,18 @@ export function Pengeluaran() {
             <Label>Keterangan</Label>
             <Input
               value={form.keterangan}
-              disabled={isOwner}
               onChange={(e) => setForm({ ...form, keterangan: e.target.value })}
-              placeholder="Contoh: beli kantong kresek, sabun cuci kios..."
+              placeholder={
+                isOwner
+                  ? 'Contoh: Gaji karyawan bulan ini, Pembayaran sewa kios, Listrik toko...'
+                  : 'Contoh: Beli kantong kresek, sabun cuci kios...'
+              }
             />
           </div>
           <div>
             <Label>Jumlah (Rp)</Label>
             <CurrencyInput
               value={form.jumlah}
-              disabled={isOwner}
               onChange={(val) => setForm({ ...form, jumlah: val })}
             />
           </div>
@@ -269,9 +374,30 @@ export function Pengeluaran() {
         open={!!hapus}
         onClose={() => setHapus(null)}
         title="Hapus Pengeluaran"
-        footer={<><Button variant="secondary" onClick={() => setHapus(null)}>Batal</Button><Button variant="danger" onClick={() => { if (hapus) { hapusPengeluaran(hapus.id); push({ tipe: 'sukses', judul: 'Pengeluaran dihapus' }) } setHapus(null) }}>Hapus</Button></>}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setHapus(null)}>
+              Batal
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                if (hapus) {
+                  hapusPengeluaran(hapus.id)
+                  push({ tipe: 'sukses', judul: 'Pengeluaran dihapus' })
+                }
+                setHapus(null)
+              }}
+            >
+              Hapus
+            </Button>
+          </>
+        }
       >
-        <p className="text-sm text-slate-600">Hapus catatan <span className="font-semibold">{hapus?.keterangan}</span> sebesar {rupiah(hapus?.jumlah ?? 0)}?</p>
+        <p className="text-sm text-slate-600">
+          Hapus catatan <span className="font-semibold">{hapus?.keterangan}</span> sebesar{' '}
+          {rupiah(hapus?.jumlah ?? 0)}?
+        </p>
       </Modal>
     </>
   )

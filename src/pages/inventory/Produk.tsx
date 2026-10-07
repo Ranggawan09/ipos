@@ -191,8 +191,13 @@ export function Produk() {
                         : <Badge warna="green">Aman</Badge>}
                   </div>
                   {p.tglExpired && (
-                    <div className="text-[10px] px-1.5 py-0.5 font-medium">
-                      Exp: {p.tglExpired}
+                    <div className="text-[10px] px-1.5 py-0.5 font-medium text-slate-600 flex items-center gap-1">
+                      <span>Exp: {p.tglExpired}</span>
+                      {p.batches && p.batches.filter((b) => b.stok > 0).length > 1 && (
+                        <span className="text-[9px] font-bold text-brand-700 bg-brand-50 px-1 rounded border border-brand-200">
+                          {p.batches.filter((b) => b.stok > 0).length} batch
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>

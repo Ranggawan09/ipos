@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { DEFAULT_TEMPLATE_NOTA } from '@/types'
 import type {
+  AlokasiBatchItem,
   BarangKeluar,
   HutangSupplier,
   Kategori,
@@ -198,6 +199,71 @@ export type DataState = {
   resetData: () => void
 }
 
+export function alokasikanStokFIFO(
+  p: Produk,
+  jumlahDibutuhkan: number,
+  nowIso = new Date().toISOString(),
+): { alokasi: AlokasiBatchItem[]; tglExpiredUtama?: string } {
+  // Jika produk belum memiliki daftar batch, tetapi memiliki tglExpired dan stok > 0
+  if (!p.batches || p.batches.length === 0) {
+    if (p.tglExpired && p.stok > 0) {
+      p.batches = [
+        {
+          id: `BCH-${p.id}-INIT`,
+          nomorBatch: 'BATCH-INIT',
+          tglExpired: p.tglExpired,
+          stok: p.stok,
+          waktuMasuk: nowIso,
+        },
+      ]
+    } else {
+      return { alokasi: [] }
+    }
+  }
+
+  // Ambil batch dengan stok > 0, urutkan berdasarkan tglExpired ASC (FEFO), lalu waktuMasuk ASC (FIFO)
+  const batchList = p.batches
+    .filter((b) => b.stok > 0)
+    .sort((a, b) => {
+      if (a.tglExpired !== b.tglExpired) {
+        return a.tglExpired.localeCompare(b.tglExpired)
+      }
+      return (a.waktuMasuk || '').localeCompare(b.waktuMasuk || '')
+    })
+
+  let sisaKebutuhan = jumlahDibutuhkan
+  const alokasi: AlokasiBatchItem[] = []
+
+  for (const b of batchList) {
+    if (sisaKebutuhan <= 0) break
+    const potong = Math.min(b.stok, sisaKebutuhan)
+    b.stok -= potong
+    sisaKebutuhan -= potong
+    alokasi.push({
+      batchId: b.id,
+      tglExpired: b.tglExpired,
+      qty: potong,
+    })
+  }
+
+  // Sinkronkan tglExpired terdekat dari batch yang masih memiliki sisa stok > 0
+  const activeBatches = p.batches
+    .filter((b) => b.stok > 0)
+    .sort((a, b) => a.tglExpired.localeCompare(b.tglExpired))
+
+  if (activeBatches.length > 0) {
+    p.tglExpired = activeBatches[0].tglExpired
+  } else {
+    // Seluruh batch dengan tanggal expired telah habis
+    p.tglExpired = undefined
+  }
+
+  return {
+    alokasi,
+    tglExpiredUtama: alokasi[0]?.tglExpired,
+  }
+}
+
 function freshData() {
   return {
     users: structuredClone(USER_SEED),
@@ -341,7 +407,33 @@ export const useDataStore = create<DataState>()(
           p.stok = sebelum + stokMasuk
 
           if (item.tglExpired) {
-            p.tglExpired = item.tglExpired
+            if (!p.batches || p.batches.length === 0) {
+              p.batches = []
+              if (sebelum > 0 && p.tglExpired) {
+                p.batches.push({
+                  id: `BCH-${p.id}-PREV`,
+                  nomorBatch: 'BATCH-PREV',
+                  tglExpired: p.tglExpired,
+                  stok: sebelum,
+                  waktuMasuk: new Date(Date.now() - 86400000).toISOString(),
+                })
+              }
+            }
+            p.batches.push({
+              id: `BCH-${Date.now()}-${idx}`,
+              nomorBatch: `BATCH-${Date.now().toString().slice(-4)}`,
+              tglExpired: item.tglExpired,
+              stok: stokMasuk,
+              hargaBeli: item.hargaBeli,
+              waktuMasuk: now,
+            })
+
+            const activeBatches = p.batches
+              .filter((b) => b.stok > 0)
+              .sort((a, b) => a.tglExpired.localeCompare(b.tglExpired))
+            if (activeBatches.length > 0) {
+              p.tglExpired = activeBatches[0].tglExpired
+            }
           }
 
           // Update otomatis harga modal (hargaBeli) produk di master data.
@@ -879,17 +971,26 @@ export const useDataStore = create<DataState>()(
         }
 
         const pergerakanBaru: PergerakanStok[] = []
-        detail.forEach((d, idx) => {
+        const detailDenganFIFO = detail.map((d, idx) => {
           const p = produks.find((x) => x.id === d.produkId)
-          if (!p) return
+          if (!p) return d
           const sebelum = p.stok
           const potongStok = d.bobot ? d.bobot * d.qty : d.qty
           p.stok = Math.max(0, sebelum - potongStok)
+
+          // Alokasikan pemotongan batch secara FIFO (FEFO)
+          const { alokasi, tglExpiredUtama } = alokasikanStokFIFO(p, potongStok, now)
+
           const satuanKet = d.namaVarian
             ? ` (${d.namaVarian} x${d.qty})`
             : d.satuan && d.satuan !== p.satuan
             ? ` (${d.qty} ${d.satuan})`
             : ''
+
+          const fifoKet = alokasi.length > 0
+            ? ` [FIFO Exp: ${alokasi.map((a) => `${a.tglExpired} x${a.qty}`).join(', ')}]`
+            : ''
+
           pergerakanBaru.push({
             id: `MOV-SALE-${Date.now()}-${idx}`,
             produkId: p.id,
@@ -897,12 +998,19 @@ export const useDataStore = create<DataState>()(
             jumlah: -potongStok,
             stokSebelum: sebelum,
             stokSesudah: p.stok,
-            keterangan: `Penjualan ${trx.nomor}${satuanKet}`,
+            keterangan: `Penjualan ${trx.nomor}${satuanKet}${fifoKet}`,
             referensiId: trx.id,
             userId: kasirId,
             waktu: now,
           })
+
+          return {
+            ...d,
+            tglExpired: tglExpiredUtama || d.tglExpired,
+            alokasiBatch: alokasi.length > 0 ? alokasi : undefined,
+          }
         })
+        trx.detail = detailDenganFIFO
 
         set({
           produk: produks,
@@ -950,6 +1058,31 @@ export const useDataStore = create<DataState>()(
           const sebelum = p.stok
           const balikStok = d.bobot ? d.bobot * d.qty : d.qty
           p.stok = sebelum + balikStok
+
+          // Kembalikan ke batch terkait jika ada alokasiBatch
+          if (d.alokasiBatch && d.alokasiBatch.length > 0) {
+            if (!p.batches) p.batches = []
+            d.alokasiBatch.forEach((a) => {
+              const b = p.batches?.find((x) => x.id === a.batchId)
+              if (b) {
+                b.stok += a.qty
+              } else {
+                p.batches?.push({
+                  id: a.batchId,
+                  tglExpired: a.tglExpired,
+                  stok: a.qty,
+                  waktuMasuk: new Date().toISOString(),
+                })
+              }
+            })
+            const activeBatches = p.batches
+              .filter((b) => b.stok > 0)
+              .sort((x, y) => x.tglExpired.localeCompare(y.tglExpired))
+            if (activeBatches.length > 0) {
+              p.tglExpired = activeBatches[0].tglExpired
+            }
+          }
+
           const satuanKet = d.namaVarian
             ? ` (${d.namaVarian} x${d.qty})`
             : d.satuan && d.satuan !== p.satuan
@@ -1000,6 +1133,23 @@ export const useDataStore = create<DataState>()(
           const dtl = trx.detail.find((d) => d.produkId === it.produkId)
           const balikStok = dtl?.bobot ? dtl.bobot * it.qty : it.qty
           p.stok = sebelum + balikStok
+
+          // Kembalikan ke batch terkait jika ada alokasiBatch
+          if (dtl?.alokasiBatch && dtl.alokasiBatch.length > 0) {
+            if (!p.batches) p.batches = []
+            dtl.alokasiBatch.forEach((a) => {
+              const b = p.batches?.find((x) => x.id === a.batchId)
+              if (b) {
+                b.stok += Math.min(it.qty, a.qty)
+              }
+            })
+            const activeBatches = p.batches
+              .filter((b) => b.stok > 0)
+              .sort((x, y) => x.tglExpired.localeCompare(y.tglExpired))
+            if (activeBatches.length > 0) {
+              p.tglExpired = activeBatches[0].tglExpired
+            }
+          }
           pergerakanBaru.push({
             id: `MOV-RET-${Date.now()}-${idx}`,
             produkId: p.id,

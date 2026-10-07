@@ -1,9 +1,10 @@
 import { useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useDataStore } from '@/store/useDataStore'
 import { hanyaSelesai, labaKotor, produkTerlaris, ringkasPerHari, stokKritis, totalHpp, totalPenjualan } from '@/store/selectors'
 import { awalBulanIni, awalHariIni, angka, rupiah, rupiahShort } from '@/lib/format'
-import { Badge, Card, EmptyState, StatCard } from '@/components/ui'
+import { Badge, Button, Card, EmptyState, StatCard } from '@/components/ui'
 
 export function DashboardOwner() {
   const { transaksi, produk, pengeluaran, kategori } = useDataStore()
@@ -40,14 +41,20 @@ export function DashboardOwner() {
 
   return (
     <div className="mx-auto max-w-7xl p-4 lg:p-6">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-slate-800">Ringkasan Kinerja Toko</h1>
           <p className="mt-1 text-sm text-slate-500">
             Data diperbarui otomatis dari server lokal toko melalui sinkronisasi cloud.
           </p>
         </div>
-        <Badge warna="blue">Akses baca (read-only)</Badge>
+        <div className="flex items-center gap-2">
+          <Link to="/owner/pengeluaran">
+            <Button size="sm">
+              + Catat Pengeluaran
+            </Button>
+          </Link>
+        </div>
       </div>
 
         <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -137,6 +144,12 @@ export function DashboardOwner() {
                   <p className="text-xs text-amber-700">Beban operasional bulan ini</p>
                   <p className="text-lg font-bold text-amber-700">{rupiah(bebanBulanIni)}</p>
                 </div>
+                <Link
+                  to="/owner/pengeluaran"
+                  className="rounded bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-800 hover:bg-amber-200 transition"
+                >
+                  Kelola &raquo;
+                </Link>
               </div>
               <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-3">
                 <div>

@@ -3,12 +3,12 @@ import { Link } from 'react-router-dom'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useDataStore } from '@/store/useDataStore'
 import { hanyaSelesai, labaKotor, produkTerlaris, ringkasPerHari, stokKritis, totalPenjualan, nilaiStok } from '@/store/selectors'
-import { awalHariIni, angka, rupiah, rupiahShort, tanggalJam } from '@/lib/format'
+import { awalHariIni, angka, rupiah, rupiahShort, tanggalSingkat } from '@/lib/format'
 import { Badge, Card, EmptyState, FR, PageHeader, StatCard } from '@/components/ui'
 import { ModalRestockSupplier } from '@/components/ModalRestockSupplier'
 
 export function AdminDashboard() {
-  const { produk, transaksi, pergerakan, kategori, users } = useDataStore()
+  const { produk, transaksi, pergerakan, kategori } = useDataStore()
   const [modalRestock, setModalRestock] = useState(false)
 
   const mulaiHari = awalHariIni().toISOString()
@@ -22,6 +22,65 @@ export function AdminDashboard() {
   const kritis = stokKritis(produk)
   const grafik = ringkasPerHari(transaksi, 14)
   const terlaris = produkTerlaris(transaksi, 6).map((p) => ({ ...p, qty: p.qty }))
+
+  const produkAkanExpired = useMemo(() => {
+    const items: {
+      id: string
+      produkId: string
+      nama: string
+      sku: string
+      stok: number
+      satuan: string
+      tglExpired: string
+      hariLagi: number
+      nomorBatch?: string
+    }[] = []
+
+    const hariIni = new Date()
+    hariIni.setHours(0, 0, 0, 0)
+
+    produk.forEach((p) => {
+      if (!p.aktif) return
+      if (p.batches && p.batches.length > 0) {
+        p.batches
+          .filter((b) => b.stok > 0 && b.tglExpired)
+          .forEach((b) => {
+            const expDate = new Date(b.tglExpired)
+            expDate.setHours(0, 0, 0, 0)
+            const selisihHari = Math.ceil((expDate.getTime() - hariIni.getTime()) / (1000 * 60 * 60 * 24))
+            items.push({
+              id: `${p.id}-${b.id}`,
+              produkId: p.id,
+              nama: p.nama,
+              sku: p.sku,
+              stok: b.stok,
+              satuan: p.satuan || 'pcs',
+              tglExpired: b.tglExpired,
+              hariLagi: selisihHari,
+              nomorBatch: b.nomorBatch,
+            })
+          })
+      } else if (p.tglExpired && p.stok > 0) {
+        const expDate = new Date(p.tglExpired)
+        expDate.setHours(0, 0, 0, 0)
+        const selisihHari = Math.ceil((expDate.getTime() - hariIni.getTime()) / (1000 * 60 * 60 * 24))
+        items.push({
+          id: p.id,
+          produkId: p.id,
+          nama: p.nama,
+          sku: p.sku,
+          stok: p.stok,
+          satuan: p.satuan || 'pcs',
+          tglExpired: p.tglExpired,
+          hariLagi: selisihHari,
+        })
+      }
+    })
+
+    return items
+      .sort((a, b) => a.tglExpired.localeCompare(b.tglExpired))
+      .slice(0, 6)
+  }, [produk])
 
   const perKategori = useMemo(
     () =>
@@ -40,8 +99,6 @@ export function AdminDashboard() {
   )
 
   const WARNA = ['#1d6bf5', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4']
-
-  const namaKasir = (id: string) => users.find((u) => u.id === id)?.nama ?? id
 
   return (
     <>
@@ -120,21 +177,61 @@ export function AdminDashboard() {
           </div>
         </Card>
 
-        <Card title="Transaksi Terbaru" action={<Link to="/admin/transaksi" className="text-xs font-medium text-brand-600 hover:underline">Lihat semua</Link>}>
-          <div className="space-y-2">
-            {transaksi.slice(0, 6).map((t) => (
-              <div key={t.id} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2">
-                <div className="min-w-0">
-                  <p className="truncate font-mono text-[11px] text-slate-600">{t.nomor}</p>
-                  <p className="text-[11px] text-slate-400">{tanggalJam(t.waktu)} | {namaKasir(t.kasirId)}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-semibold text-slate-700">{rupiah(t.total)}</p>
-                  {t.status === 'void' && <Badge warna="red">Void</Badge>}
-                </div>
-              </div>
-            ))}
-          </div>
+        <Card
+          title="Produk Mendekati Expired"
+          subtitle="Prioritas penjualan FIFO / pantauan kedaluwarsa"
+          action={
+            <Link to="/admin/produk" className="text-xs font-medium text-brand-600 hover:underline">
+              Kelola stok
+            </Link>
+          }
+        >
+          {produkAkanExpired.length === 0 ? (
+            <EmptyState judul="Semua produk aman dari kedaluwarsa" />
+          ) : (
+            <div className="space-y-2">
+              {produkAkanExpired.map((item) => {
+                const warnaBadge: 'red' | 'amber' | 'blue' =
+                  item.hariLagi <= 7 ? 'red' : item.hariLagi <= 30 ? 'amber' : 'blue'
+                const teksStatus =
+                  item.hariLagi < 0
+                    ? `Lewat ${Math.abs(item.hariLagi)} hr`
+                    : item.hariLagi === 0
+                    ? 'Hari ini'
+                    : `${item.hariLagi} hr lagi`
+
+                return (
+                  <div
+                    key={item.id}
+                    className={`flex items-center justify-between rounded-lg border px-3 py-2 transition ${
+                      item.hariLagi <= 7
+                        ? 'border-rose-200 bg-rose-50/50'
+                        : item.hariLagi <= 30
+                        ? 'border-amber-200 bg-amber-50/40'
+                        : 'border-slate-100 bg-white'
+                    }`}
+                  >
+                    <div className="min-w-0 pr-2">
+                      <p className="truncate text-xs font-semibold text-slate-800">{item.nama}</p>
+                      <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                        <span>
+                          Sisa: <strong className="text-slate-700">{item.stok} {item.satuan}</strong>
+                        </span>
+                        <span>•</span>
+                        <span>Exp: {tanggalSingkat(item.tglExpired)}</span>
+                        {item.nomorBatch && (
+                          <span className="font-mono text-slate-400">({item.nomorBatch})</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <Badge warna={warnaBadge}>{teksStatus}</Badge>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </Card>
 
         <Card

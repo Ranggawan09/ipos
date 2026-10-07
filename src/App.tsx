@@ -90,7 +90,7 @@ export default function App() {
           <Route path="shift" element={<ShiftPage />} />
         </Route>
 
-        {/* Panel Owner (read-only) */}
+        {/* Panel Owner */}
         <Route
           path="/owner"
           element={

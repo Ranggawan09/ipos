@@ -47,6 +47,15 @@ export type SatuanBertingkat = {
   rasio?: number // rasio terhadap induk (misal: 0.5)
 }
 
+export type BatchProduk = {
+  id: string
+  nomorBatch?: string
+  tglExpired: string // Tanggal kedaluwarsa batch (YYYY-MM-DD)
+  stok: number // Sisa kuantitas pada batch ini dalam satuan terkecil
+  hargaBeli?: number
+  waktuMasuk?: string // ISO timestamp saat batch dicatat
+}
+
 export type Produk = {
   id: string
   sku: string
@@ -60,7 +69,8 @@ export type Produk = {
   stok: number // Kuantitas dalam satuan terkecil
   stokMinimum: number // Batas minimum dalam satuan terkecil
   aktif: boolean
-  tglExpired?: string // Tanggal kedaluwarsa produk (YYYY-MM-DD)
+  tglExpired?: string // Tanggal kedaluwarsa terdekat yang aktif (YYYY-MM-DD)
+  batches?: BatchProduk[] // Daftar batch kedaluwarsa untuk FIFO / FEFO
   varian?: VarianBobot[]
   satuanBertingkat?: SatuanBertingkat[]
   bagiModalOtomatis?: boolean // undefined = aktif. Bagi modal proporsional ke semua satuan saat salah satu modal berubah
@@ -95,6 +105,12 @@ export type PergerakanStok = {
 
 export type MetodePembayaran = 'tunai' | 'qris' | 'debit'
 
+export type AlokasiBatchItem = {
+  batchId: string
+  tglExpired: string
+  qty: number
+}
+
 export type DetailTransaksi = {
   id: string
   produkId: string
@@ -111,6 +127,8 @@ export type DetailTransaksi = {
   varianId?: string
   namaVarian?: string
   bobot?: number
+  tglExpired?: string // Tanggal expired batch yang dipotong (atau batch terdekat)
+  alokasiBatch?: AlokasiBatchItem[] // Rincian pemotongan stok per batch secara FIFO
 }
 
 export type StatusTransaksi = 'selesai' | 'void' | 'menunggu_sinkron'

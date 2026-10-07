@@ -644,6 +644,16 @@ export function KasirPOS() {
                       {isHabis ? `Habis (0 ${p.satuan || 'pcs'})` : `stok ${p.stok} ${p.satuan || 'pcs'}`}
                     </span>
                   </div>
+                  {p.tglExpired && !isHabis && (
+                    <div className="mt-1 flex items-center justify-between text-[9px] bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded">
+                      <span className="text-amber-700 font-medium truncate">
+                        Exp: {p.tglExpired}
+                      </span>
+                      <span className="text-[9px] font-bold text-emerald-700 bg-emerald-100 px-1 py-0.2 rounded shrink-0">
+                        FIFO
+                      </span>
+                    </div>
+                  )}
                 </button>
               )
             })}
@@ -708,13 +718,24 @@ export function KasirPOS() {
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="truncate text-xs font-medium text-slate-700">{c.nama}</p>
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
                         <p className="text-[11px] text-slate-400">{rupiah(c.hargaJual)} / {c.sku}</p>
                         {c.namaVarian && (
                           <span className="inline-flex items-center rounded bg-indigo-100 px-1 py-0.5 text-[9px] font-semibold text-indigo-700">
                             {c.namaVarian}
                           </span>
                         )}
+                        {(() => {
+                          const prod = produk.find((x) => x.id === c.produkId)
+                          if (prod?.tglExpired) {
+                            return (
+                              <span className="inline-flex items-center gap-1 rounded bg-amber-50 border border-amber-200 px-1 py-0.2 text-[9px] font-semibold text-amber-700">
+                                FIFO: {prod.tglExpired}
+                              </span>
+                            )
+                          }
+                          return null
+                        })()}
                       </div>
                     </div>
                     <button

@@ -16,6 +16,7 @@ const LABEL_EXP: Record<string, string> = {
   gaji: 'Gaji karyawan',
   transport: 'Transport',
   lainnya: 'Lain-lain',
+  operasional_kasir: 'Operasional Kasir',
 }
 
 export function LabaRugi() {

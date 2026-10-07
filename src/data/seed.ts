@@ -247,6 +247,71 @@ export function buildProduk(): Produk[] {
           : undefined,
       }
 
+      // Inisialisasi daftar batch jika produk memiliki tglExpired
+      if (prod.tglExpired) {
+        prod.batches = [
+          {
+            id: `BCH-${prod.id}-01`,
+            nomorBatch: `BCH-${String(n).padStart(3, '0')}-A`,
+            tglExpired: prod.tglExpired,
+            stok: prod.stok,
+            hargaBeli: prod.hargaBeli,
+            waktuMasuk: isoDaysAgo(14, 8, 0),
+          },
+        ]
+      }
+
+      // Produk sampel multi-batch dengan tanggal kedaluwarsa berbeda untuk menguji FIFO (FEFO)
+      if (nama === 'Susu UHT 1L') {
+        const expDekat = isoDaysAgo(-5).split('T')[0] // Expired 5 hari lagi
+        const expJauh = isoDaysAgo(-60).split('T')[0] // Expired 60 hari lagi
+        prod.stok = 30
+        prod.tglExpired = expDekat
+        prod.batches = [
+          {
+            id: `BCH-${prod.id}-01`,
+            nomorBatch: 'BATCH-EXP-05D',
+            tglExpired: expDekat,
+            stok: 10,
+            hargaBeli: prod.hargaBeli,
+            waktuMasuk: isoDaysAgo(20, 8, 0),
+          },
+          {
+            id: `BCH-${prod.id}-02`,
+            nomorBatch: 'BATCH-EXP-60D',
+            tglExpired: expJauh,
+            stok: 20,
+            hargaBeli: prod.hargaBeli,
+            waktuMasuk: isoDaysAgo(5, 10, 0),
+          },
+        ]
+      }
+
+      if (nama === 'Mie Instan Goreng') {
+        const expDekat = isoDaysAgo(-10).split('T')[0] // Expired 10 hari lagi
+        const expJauh = isoDaysAgo(-90).split('T')[0] // Expired 90 hari lagi
+        prod.stok = 35
+        prod.tglExpired = expDekat
+        prod.batches = [
+          {
+            id: `BCH-${prod.id}-01`,
+            nomorBatch: 'BATCH-EXP-10D',
+            tglExpired: expDekat,
+            stok: 15,
+            hargaBeli: prod.hargaBeli,
+            waktuMasuk: isoDaysAgo(25, 9, 0),
+          },
+          {
+            id: `BCH-${prod.id}-02`,
+            nomorBatch: 'BATCH-EXP-90D',
+            tglExpired: expJauh,
+            stok: 20,
+            hargaBeli: prod.hargaBeli,
+            waktuMasuk: isoDaysAgo(2, 11, 0),
+          },
+        ]
+      }
+
       // Produk satuan bertingkat & pecahan: Beras Curah
       if (nama === 'Beras Curah' || nama === 'Beras Rojolele Curah') {
         prod.nama = 'Beras Curah'
