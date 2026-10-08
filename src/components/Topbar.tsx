@@ -6,7 +6,6 @@ import { stokKritis } from '@/store/selectors'
 import { useToast } from '@/store/useToast'
 import { angka, jam } from '@/lib/format'
 import { Badge } from './ui'
-import { ModalRestockSupplier } from './ModalRestockSupplier'
 
 export function TopbarActions() {
   const navigate = useNavigate()
@@ -16,7 +15,6 @@ export function TopbarActions() {
   const push = useToast((s) => s.push)
   const [bukaNotif, setBukaNotif] = useState(false)
   const [bukaUser, setBukaUser] = useState(false)
-  const [modalRestock, setModalRestock] = useState(false)
 
   const kritis = useMemo(() => stokKritis(produk), [produk])
   const terakhirCloud = logSinkron.find((l) => l.jenis === 'cloud')
@@ -126,7 +124,7 @@ export function TopbarActions() {
                         key={p.id}
                         onClick={() => {
                           setBukaNotif(false)
-                          setModalRestock(true)
+                          navigate(p.supplierId ? `/admin/supplier/restock?supplierId=${p.supplierId}` : '/admin/supplier/restock')
                         }}
                         className="flex w-full items-start justify-between gap-2 border-b border-slate-50 px-4 py-2.5 text-left hover:bg-amber-50/50 transition group"
                       >
@@ -146,7 +144,7 @@ export function TopbarActions() {
                     <button
                       onClick={() => {
                         setBukaNotif(false)
-                        setModalRestock(true)
+                        navigate('/admin/supplier/restock')
                       }}
                       className="w-full flex items-center justify-center py-2 px-3 text-xs font-semibold text-amber-900 bg-amber-100 hover:bg-amber-200 rounded-lg border border-amber-300 transition shadow-sm"
                     >
@@ -197,11 +195,6 @@ export function TopbarActions() {
           )}
         </div>
       </div>
-
-      <ModalRestockSupplier
-        open={modalRestock}
-        onClose={() => setModalRestock(false)}
-      />
     </>
   )
 }

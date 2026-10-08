@@ -13,6 +13,9 @@ import { Produk } from '@/pages/inventory/Produk'
 import { FormProduk } from '@/pages/inventory/FormProduk'
 import { Kategori } from '@/pages/inventory/Kategori'
 import { Supplier } from '@/pages/inventory/Supplier'
+import { FormSupplier } from '@/pages/inventory/FormSupplier'
+import { KelolaBarangSupplier } from '@/pages/inventory/KelolaBarangSupplier'
+import { RestockSupplier } from '@/pages/inventory/RestockSupplier'
 import { BarangMasuk } from '@/pages/inventory/BarangMasuk'
 import { BarangKeluar } from '@/pages/inventory/BarangKeluar'
 import { StockOpname } from '@/pages/inventory/StockOpname'
@@ -55,6 +58,13 @@ export default function App() {
           <Route path="produk/:id/duplikat" element={<FormProduk />} />
           <Route path="kategori" element={<Kategori />} />
           <Route path="supplier" element={<Supplier />} />
+          <Route path="supplier/tambah" element={<FormSupplier />} />
+          <Route path="supplier/restock" element={<RestockSupplier />} />
+          <Route path="supplier/:id/restock" element={<RestockSupplier />} />
+          <Route path="supplier/:id" element={<FormSupplier />} />
+          <Route path="supplier/:id/edit" element={<FormSupplier />} />
+          <Route path="supplier/:id/barang" element={<KelolaBarangSupplier />} />
+          <Route path="supplier/:id/produk" element={<KelolaBarangSupplier />} />
           <Route path="barang-masuk" element={<BarangMasuk />} />
           <Route path="barang-keluar" element={<BarangKeluar />} />
           <Route path="stock-opname" element={<StockOpname />} />

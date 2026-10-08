@@ -595,16 +595,24 @@ export function FormProduk() {
 
   return (
     <div className="space-y-5 pb-12">
+      {/* Tombol Navigasi Kembali */}
+      <div className="flex items-center justify-between">
+        <button
+          type="button"
+          onClick={handleKembali}
+          className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 transition"
+        >
+          <ArrowLeftIcon size={14} />
+          Kembali ke Daftar Produk
+        </button>
+      </div>
+
       {/* Header Halaman Luas */}
       <PageHeader
         judul={judulHalaman}
         deskripsi={deskripsiHalaman}
         aksi={
           <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={handleKembali}>
-              <ArrowLeftIcon size={16} className="mr-1.5" />
-              Kembali
-            </Button>
             {!isOwner && (
               <Button onClick={simpan}>
                 Simpan Produk

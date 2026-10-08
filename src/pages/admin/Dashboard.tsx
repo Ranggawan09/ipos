@@ -1,15 +1,14 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useMemo } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useDataStore } from '@/store/useDataStore'
 import { hanyaSelesai, labaKotor, produkTerlaris, ringkasPerHari, stokKritis, totalPenjualan, nilaiStok } from '@/store/selectors'
 import { awalHariIni, angka, rupiah, rupiahShort, tanggalSingkat } from '@/lib/format'
 import { Badge, Card, EmptyState, FR, PageHeader, StatCard } from '@/components/ui'
-import { ModalRestockSupplier } from '@/components/ModalRestockSupplier'
 
 export function AdminDashboard() {
+  const navigate = useNavigate()
   const { produk, transaksi, pergerakan, kategori } = useDataStore()
-  const [modalRestock, setModalRestock] = useState(false)
 
   const mulaiHari = awalHariIni().toISOString()
   const trxHariIni = useMemo(
@@ -241,7 +240,7 @@ export function AdminDashboard() {
             <div className="flex items-center gap-2">
               {kritis.length > 0 && (
                 <button
-                  onClick={() => setModalRestock(true)}
+                  onClick={() => navigate('/admin/supplier/restock')}
                   className="inline-flex items-center text-xs font-semibold text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded border border-amber-200 transition"
                 >
                   PO Restock
@@ -260,7 +259,7 @@ export function AdminDashboard() {
               kritis.slice(0, 10).map((p) => (
                 <div
                   key={p.id}
-                  onClick={() => setModalRestock(true)}
+                  onClick={() => navigate(p.supplierId ? `/admin/supplier/restock?supplierId=${p.supplierId}` : '/admin/supplier/restock')}
                   className="flex items-center justify-between rounded-lg bg-rose-50/60 hover:bg-amber-50 px-3 py-2 cursor-pointer transition"
                   title="Klik untuk buka rekomendasi restock & PO"
                 >
@@ -275,7 +274,7 @@ export function AdminDashboard() {
           </div>
           {kritis.length > 0 && (
             <button
-              onClick={() => setModalRestock(true)}
+              onClick={() => navigate('/admin/supplier/restock')}
               className="mt-3 w-full flex items-center justify-center py-2 px-3 text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 rounded-lg border border-amber-200 transition shadow-xs"
             >
               Detail Restock per Supplier & Cetak PO
@@ -287,11 +286,6 @@ export function AdminDashboard() {
       <p className="mt-4 text-center text-[11px] text-slate-400">
         Total pergerakan stok tercatat: {angka(pergerakan.length)} baris.
       </p>
-
-      <ModalRestockSupplier
-        open={modalRestock}
-        onClose={() => setModalRestock(false)}
-      />
     </>
   )
 }

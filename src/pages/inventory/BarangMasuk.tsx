@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import type { PenerimaanBarang, Produk } from '@/types'
 import { useDataStore } from '@/store/useDataStore'
 import { useSessionStore } from '@/store/useSessionStore'
 import { useToast } from '@/store/useToast'
 import { rupiah, tanggalJam, toDateInput } from '@/lib/format'
 import { Badge, Button, Card, CurrencyInput, DataTable, FR, Input, Label, Modal, PageHeader, Select } from '@/components/ui'
-import { ModalRestockSupplier } from '@/components/ModalRestockSupplier'
 import { SelectProduk } from '@/components/SelectProduk'
 
 type Baris = {
@@ -66,12 +66,12 @@ function createDefaultBaris(p?: Produk): Baris {
 }
 
 export function BarangMasuk() {
+  const navigate = useNavigate()
   const { produk, supplier, kategori, penerimaan, terimaBarang, simpanProduk } = useDataStore()
   const currentUser = useSessionStore((s) => s.currentUser)
   const push = useToast((s) => s.push)
 
   const [modal, setModal] = useState(false)
-  const [modalRestock, setModalRestock] = useState(false)
   const [modalTambahProduk, setModalTambahProduk] = useState(false)
   const [detailPenerimaan, setDetailPenerimaan] = useState<PenerimaanBarang | null>(null)
   const [supplierId, setSupplierId] = useState(supplier[0]?.id ?? '')
@@ -265,7 +265,7 @@ export function BarangMasuk() {
               <Button
                 variant="secondary"
                 className="border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
-                onClick={() => setModalRestock(true)}
+                onClick={() => navigate('/admin/supplier/restock')}
               >
                 Rekomendasi Restock ({jumlahKritis})
               </Button>
@@ -819,11 +819,6 @@ export function BarangMasuk() {
           </div>
         </div>
       </Modal>
-
-      <ModalRestockSupplier
-        open={modalRestock}
-        onClose={() => setModalRestock(false)}
-      />
     </>
   )
 }

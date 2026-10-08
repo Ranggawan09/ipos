@@ -1,27 +1,17 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import type { Supplier as TSupplier } from '@/types'
 import { useDataStore } from '@/store/useDataStore'
 import { useToast } from '@/store/useToast'
 import { rupiah } from '@/lib/format'
-import { Badge, Button, Card, DataTable, FR, Input, Label, Modal, PageHeader, Textarea } from '@/components/ui'
-import { ModalKelolaProdukSupplier } from '@/components/ModalKelolaProdukSupplier'
-import { ModalRestockSupplier } from '@/components/ModalRestockSupplier'
-
-const kosong = { nama: '', kontak: '', telepon: '', alamat: '' }
+import { Badge, Button, Card, DataTable, FR, Modal, PageHeader } from '@/components/ui'
 
 export function Supplier() {
-  const { supplier, hutang, produk, simpanSupplier, hapusSupplier } = useDataStore()
+  const navigate = useNavigate()
+  const { supplier, hutang, produk, hapusSupplier } = useDataStore()
   const push = useToast((s) => s.push)
 
-  const [modal, setModal] = useState(false)
-  const [edit, setEdit] = useState<TSupplier | null>(null)
-  const [form, setForm] = useState(kosong)
   const [hapus, setHapus] = useState<TSupplier | null>(null)
-
-  // State untuk Kelola Produk & Restock
-  const [kelolaSupplier, setKelolaSupplier] = useState<TSupplier | null>(null)
-  const [modalRestock, setModalRestock] = useState(false)
-  const [targetRestockSupplierId, setTargetRestockSupplierId] = useState<string | null>(null)
 
   const hutangAktif = (id: string) =>
     hutang.filter((h) => h.supplierId === id && h.status === 'belum_lunas').reduce((a, h) => a + h.sisa, 0)
@@ -30,16 +20,6 @@ export function Supplier() {
   const totalBarangKritis = useMemo(() => {
     return produk.filter((p) => p.aktif && p.stok <= p.stokMinimum && p.supplierId).length
   }, [produk])
-
-  const simpan = () => {
-    if (!form.nama.trim()) {
-      push({ tipe: 'error', judul: 'Nama supplier wajib diisi' })
-      return
-    }
-    simpanSupplier(edit ? { ...form, id: edit.id } : form)
-    push({ tipe: 'sukses', judul: edit ? 'Supplier diperbarui' : 'Supplier ditambahkan' })
-    setModal(false)
-  }
 
   return (
     <>
@@ -51,20 +31,11 @@ export function Supplier() {
             <Button
               variant="secondary"
               className={totalBarangKritis > 0 ? 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 font-medium' : ''}
-              onClick={() => {
-                setTargetRestockSupplierId(null)
-                setModalRestock(true)
-              }}
+              onClick={() => navigate('/admin/supplier/restock')}
             >
               Restock & PO {totalBarangKritis > 0 ? `(${totalBarangKritis})` : ''}
             </Button>
-            <Button
-              onClick={() => {
-                setEdit(null)
-                setForm(kosong)
-                setModal(true)
-              }}
-            >
+            <Button onClick={() => navigate('/admin/supplier/tambah')}>
               Tambah Supplier
             </Button>
           </div>
@@ -156,7 +127,7 @@ export function Supplier() {
                       size="sm"
                       variant="secondary"
                       className="text-xs"
-                      onClick={() => setKelolaSupplier(s)}
+                      onClick={() => navigate(`/admin/supplier/${s.id}/barang`)}
                       title="Kelola produk yang disuplai oleh supplier ini"
                     >
                       Kelola Barang ({prods.length})
@@ -169,10 +140,7 @@ export function Supplier() {
                           ? 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 text-xs font-semibold'
                           : 'text-xs'
                       }
-                      onClick={() => {
-                        setTargetRestockSupplierId(s.id)
-                        setModalRestock(true)
-                      }}
+                      onClick={() => navigate(`/admin/supplier/restock?supplierId=${s.id}`)}
                       title={
                         kritis > 0
                           ? 'Buat PO Restock untuk barang supplier ini yang menipis'
@@ -184,16 +152,7 @@ export function Supplier() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => {
-                        setEdit(s)
-                        setForm({
-                          nama: s.nama,
-                          kontak: s.kontak,
-                          telepon: s.telepon,
-                          alamat: s.alamat,
-                        })
-                        setModal(true)
-                      }}
+                      onClick={() => navigate(`/admin/supplier/${s.id}/edit`)}
                     >
                       Ubah
                     </Button>
@@ -212,59 +171,6 @@ export function Supplier() {
           ]}
         />
       </Card>
-
-      {/* Modal Tambah/Ubah Supplier */}
-      <Modal
-        open={modal}
-        onClose={() => setModal(false)}
-        title={edit ? 'Ubah Data Supplier' : 'Tambah Supplier Baru'}
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setModal(false)}>
-              Batal
-            </Button>
-            <Button onClick={simpan}>Simpan</Button>
-          </>
-        }
-      >
-        <div className="space-y-4">
-          <div>
-            <Label>Nama supplier <span className="text-rose-500">*</span></Label>
-            <Input
-              value={form.nama}
-              onChange={(e) => setForm({ ...form, nama: e.target.value })}
-              placeholder="PT / Toko / Nama Rekanan..."
-            />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <Label>Nama kontak (PIC)</Label>
-              <Input
-                value={form.kontak}
-                onChange={(e) => setForm({ ...form, kontak: e.target.value })}
-                placeholder="Contoh: Pak Budi"
-              />
-            </div>
-            <div>
-              <Label>Telepon / WhatsApp</Label>
-              <Input
-                value={form.telepon}
-                onChange={(e) => setForm({ ...form, telepon: e.target.value })}
-                placeholder="0812xxxx"
-              />
-            </div>
-          </div>
-          <div>
-            <Label>Alamat kantor / gudang</Label>
-            <Textarea
-              rows={3}
-              value={form.alamat}
-              onChange={(e) => setForm({ ...form, alamat: e.target.value })}
-              placeholder="Alamat lengkap supplier..."
-            />
-          </div>
-        </div>
-      </Modal>
 
       {/* Modal Hapus Supplier */}
       <Modal
@@ -298,27 +204,6 @@ export function Supplier() {
           Produk yang sebelumnya terhubung ke supplier ini akan berstatus tanpa pemasok, namun data produk tetap aman.
         </p>
       </Modal>
-
-      {/* Modal Kelola Produk Supplier */}
-      <ModalKelolaProdukSupplier
-        open={!!kelolaSupplier}
-        onClose={() => setKelolaSupplier(null)}
-        supplier={kelolaSupplier}
-        onOpenRestock={(supId) => {
-          setTargetRestockSupplierId(supId)
-          setModalRestock(true)
-        }}
-      />
-
-      {/* Modal Rekomendasi Restock Supplier */}
-      <ModalRestockSupplier
-        open={modalRestock}
-        onClose={() => {
-          setModalRestock(false)
-          setTargetRestockSupplierId(null)
-        }}
-        targetSupplierId={targetRestockSupplierId}
-      />
     </>
   )
 }
